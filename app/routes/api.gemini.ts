@@ -16,6 +16,7 @@ const SYSTEM_PROMPT = `
 
 1.  **친구처럼 답변하기:**
     *   'answer' 필드에는 딱딱한 정보 요약이 아닌, 친구와 대화하듯 자연스럽고 따뜻한 문장으로 답변을 작성해주세요.
+    *   답변이 길어지거나 여러 주제를 다룰 경우, 사용자가 읽기 편하도록 적절하게 줄바꿈(\n)을 사용하여 문단을 나눠주세요.
     *   Context의 내용을 기반으로 답변하되, 이를 당신의 지식인 것처럼 자연스럽게 녹여내어 설명해야 합니다. 예를 들어, 사용자가 '영양제'에 대해 물었지만 Context에 '아연이 풍부한 음식' 정보가 있다면, "영양제도 중요하지만, 혹시 아연 섭취에 관심이 있다면 이런 음식들은 어떠세요?" 와 같이 부드럽게 대화를 이끌어 가세요.
 
 2.  **정확한 출처 제공:**
@@ -34,11 +35,67 @@ const SYSTEM_PROMPT = `
   "sources": [
     {
       "reference": "사용한 출처의 제목",
-      "page": "사용한 출처의 페이지 번호"
+      "page": "사용한 출처의 페이지 번호 또는 페이지 범위 (예: 38-40)"
     }
   ]
 }
 `;
+
+/**
+ * Groups documents by reference and formats them into a context string.
+ * Consecutive pages from the same reference are grouped into a range.
+ * @param documents - The array of documents from the database.
+ * @returns A formatted context string.
+ */
+function groupAndFormatContext(documents: any[]): string {
+  if (!documents || documents.length === 0) {
+    return 'No specific context found.';
+  }
+
+  // 1. Group documents by reference
+  const groupedByReference: { [key: string]: any[] } = documents.reduce((acc, doc) => {
+    const ref = doc.reference;
+    if (!acc[ref]) {
+      acc[ref] = [];
+    }
+    acc[ref].push(doc);
+    return acc;
+  }, {});
+
+  const formattedContexts: string[] = [];
+
+  // 2. Process each group
+  for (const ref in groupedByReference) {
+    const group = groupedByReference[ref];
+    // Sort by page number
+    group.sort((a, b) => a.metadata.page - b.metadata.page);
+
+    let currentRange = [group[0]];
+    const contentParts: string[] = [];
+
+    for (let i = 1; i < group.length; i++) {
+      // Check if the page is consecutive
+      if (group[i].metadata.page === group[i - 1].metadata.page + 1) {
+        currentRange.push(group[i]);
+      } else {
+        // End of a consecutive range, format and push
+        const pages = currentRange.map(doc => doc.metadata.page);
+        const pageStr = pages.length > 1 ? `${pages[0]}-${pages[pages.length - 1]}` : `${pages[0]}`;
+        const combinedContent = currentRange.map(doc => doc.content).join('\n');
+        formattedContexts.push(`[출처: ${ref} (${pageStr}페이지)] ${combinedContent}`);
+        currentRange = [group[i]];
+      }
+    }
+    
+    // Push the last range
+    const pages = currentRange.map(doc => doc.metadata.page);
+    const pageStr = pages.length > 1 ? `${pages[0]}-${pages[pages.length - 1]}` : `${pages[0]}`;
+    const combinedContent = currentRange.map(doc => doc.content).join('\n');
+    formattedContexts.push(`[출처: ${ref} (${pageStr}페이지)] ${combinedContent}`);
+  }
+
+  return formattedContexts.join('\n\n');
+}
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
@@ -71,12 +128,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Query Neon DB using pg
     const { rows: documents } = await pool.query(
       'SELECT * FROM match_documents($1, $2, $3)',
-      [embeddingString, 0.7, 5] // query_embedding, match_threshold, match_count
+      [embeddingString, 0.7, 10] // query_embedding, match_threshold, match_count (5 -> 10)
     );
 
-    const context = documents && documents.length > 0
-      ? documents.map((doc: any) => `[출처: ${doc.reference} (${doc.metadata.page}페이지)] ${doc.content}`).join('\n\n')
-      : 'No specific context found.';
+    const context = groupAndFormatContext(documents);
       
     const augmentedPrompt = `
       Context:

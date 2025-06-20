@@ -7,6 +7,9 @@ import { ChatInput } from "~/components/chat/ChatInput";
 import { ChatMessage } from "~/components/chat/ChatMessage";
 import { LoginBanner } from "~/components/auth/LoginBanner";
 import { IMessage } from "types";
+import { Avatar, AvatarFallback } from "~/components/ui/avatar";
+import { Bot } from "lucide-react";
+import { TypingIndicator } from "~/components/chat/TypingIndicator";
 
 const MOCK_MESSAGES: IMessage[] = [
   {
@@ -116,6 +119,18 @@ export default function ChatPage() {
         {messages.map((msg) => (
           <ChatMessage key={msg.id} {...msg} />
         ))}
+        {isLoading && (
+          <div className="flex items-start gap-3 justify-start">
+            <Avatar>
+              <AvatarFallback>
+                <Bot className="h-6 w-6" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="bg-muted rounded-lg">
+              <TypingIndicator />
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </main>
 
