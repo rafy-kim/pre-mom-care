@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import { Bookmark, Settings } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { ChatInput } from "~/components/chat/ChatInput";
-import { ChatMessage, IMessage } from "~/components/chat/ChatMessage";
+import { ChatMessage } from "~/components/chat/ChatMessage";
 import { LoginBanner } from "~/components/auth/LoginBanner";
+import { IMessage } from "types";
 
 const MOCK_MESSAGES: IMessage[] = [
   {
@@ -40,7 +41,7 @@ export default function ChatPage() {
     }
   }, [userMessageCount]);
 
-  const handleSendMessage = (text: string) => {
+  const handleSendMessage = async (text: string) => {
     const newUserMessage: IMessage = {
       id: String(Date.now()),
       role: "user",
@@ -50,17 +51,40 @@ export default function ChatPage() {
     setUserMessageCount(prev => prev + 1);
     setIsLoading(true);
 
-    // AI 응답 시뮬레이션
-    setTimeout(() => {
+    try {
+      const response = await fetch("/api/gemini", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message: text }),
+      });
+
+      if (!response.ok) {
+        throw new Error("API call failed");
+      }
+
+      const { reply } = await response.json();
+
       const aiResponse: IMessage = {
         id: String(Date.now() + 1),
         role: "assistant",
-        text: `\"${text}\"에 대한 답변을 생성했습니다. (시뮬레이션)`,
-        source: "AI 시뮬레이션"
+        text: reply,
+        source: "Gemini AI"
       };
       setMessages((prev) => [...prev, aiResponse]);
+    } catch (error) {
+      console.error("Error fetching AI response:", error);
+      const errorResponse: IMessage = {
+        id: String(Date.now() + 1),
+        role: "assistant",
+        text: "죄송합니다. 답변을 생성하는 동안 오류가 발생했습니다.",
+        source: "Error"
+      };
+      setMessages((prev) => [...prev, errorResponse]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
   
   const handleLogin = () => {
