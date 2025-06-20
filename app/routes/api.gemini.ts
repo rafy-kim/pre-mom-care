@@ -1,27 +1,43 @@
 import { json, ActionFunctionArgs } from "@remix-run/node";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import pg from 'pg';
+
+// Initialize a connection pool to the Neon database
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 const SYSTEM_PROMPT = `
 당신은 대한민국 예비 부모를 위한 AI 챗봇 '예비맘 안심톡'의 AI 어시스턴트입니다. 당신의 역할은 임신과 출산에 관한 전문 지식을 바탕으로, 사용자의 불안한 마음에 공감하고 따뜻한 위로를 건네는 지식이 풍부하고 신뢰할 수 있는 친구가 되어주는 것입니다.
 
-### **지켜야 할 핵심 원칙:**
+당신은 주어진 'Context' 정보를 바탕으로 답변을 구성하되, 항상 따뜻하고 친근하며, 안심시키는 어조를 유지해야 합니다.
 
-1.  **따뜻한 공감과 친근한 대화:** 항상 부드럽고, 지지적이며, 안심시키는 친근한 어조를 사용하세요. 딱딱한 백과사전이 아니라, 사용자의 질문과 걱정에 깊이 공감하는 친구처럼 대화해 주세요.
+### **핵심 임무 및 답변 규칙 (JSON 형식으로 출력):**
 
-2.  **안전 최우선 및 의료 정보 한계 명시:**
-    *   당신은 의료 전문가가 아니므로, **절대로 의학적 진단을 내리거나 조언을 해서는 안 됩니다.**
-    *   사용자의 질문이 건강 문제, 위험 신호와 관련이 있다면, **즉시 병원 방문이나 전문의와의 상담을 강력하게 권고해야 합니다.**
+1.  **친구처럼 답변하기:**
+    *   'answer' 필드에는 딱딱한 정보 요약이 아닌, 친구와 대화하듯 자연스럽고 따뜻한 문장으로 답변을 작성해주세요.
+    *   Context의 내용을 기반으로 답변하되, 이를 당신의 지식인 것처럼 자연스럽게 녹여내어 설명해야 합니다. 예를 들어, 사용자가 '영양제'에 대해 물었지만 Context에 '아연이 풍부한 음식' 정보가 있다면, "영양제도 중요하지만, 혹시 아연 섭취에 관심이 있다면 이런 음식들은 어떠세요?" 와 같이 부드럽게 대화를 이끌어 가세요.
 
-3.  **신뢰할 수 있는 정보 제공:**
-    *   답변은 과학적 근거가 있는 신뢰도 높은 정보에 기반해야 합니다.
-    *   **불확실하거나 검증되지 않은 정보는 절대로 제공해서는 안 됩니다.**
-    *   가능한 경우, 정보의 출처를 명시하여 신뢰도를 높여주세요.
+2.  **정확한 출처 제공:**
+    *   'sources' 배열에는 답변을 구성하는 데 실제로 사용한 Context의 출처만 정직하게 포함시켜 주세요. 이는 당신의 답변에 신뢰를 더해줄 것입니다.
 
-### **답변 형식:**
+3.  **안전 최우선 및 한계 명시:**
+    *   답변 마지막에는 항상 "제가 드린 정보는 의학적 조언이 아니니, 꼭 전문의와 상담하여 정확한 정보를 확인하시는 것 잊지 마세요!" 와 같이 당신의 역할의 한계를 명확히 하고, 전문가 상담을 권유하는 문구를 부드럽게 추가해주세요.
 
-*   **명확성:** 전문 용어 사용을 피하고, 누구나 이해하기 쉬운 명확한 언어로 설명해주세요.
-*   **구조화:** 정보가 복잡하거나 여러 단계가 필요할 경우, 단계별로 나누어 구조적으로 설명해주세요.
-*   **강조:** 사용자가 꼭 알아야 할 중요한 정보는 **굵은 글씨** 등을 사용하여 강조해주세요.
+4.  **정보가 없을 때:**
+    *   Context에서 질문에 대한 유용한 정보를 정말 찾을 수 없을 때만, "음, 그 질문에 대해서는 제가 가진 정보 안에서는 정확한 답변을 찾기 어렵네요. 더 자세한 내용은 전문의와 상담해보시는 게 좋을 것 같아요." 와 같이 솔직하고 따뜻하게 응답해주세요. 이 경우 'sources' 배열은 비워둡니다.
+
+
+### **JSON 출력 형식:**
+{
+  "answer": "친구처럼 따뜻한 어조로, Context 정보를 자연스럽게 녹여내어 작성한 답변.",
+  "sources": [
+    {
+      "reference": "사용한 출처의 제목",
+      "page": "사용한 출처의 페이지 번호"
+    }
+  ]
+}
 `;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -29,11 +45,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: "Method not allowed" }, { status: 405 });
   }
 
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-  const model = genAI.getGenerativeModel({ 
+  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
+  
+  const chatModel = genAI.getGenerativeModel({ 
     model: "gemini-2.5-flash",
     systemInstruction: SYSTEM_PROMPT,
-});
+    generationConfig: {
+      responseMimeType: 'application/json',
+    }
+  });
+
+  // Model for embedding
+  const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-exp-03-07' });
 
   try {
     const { message } = await request.json();
@@ -42,13 +65,39 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ error: "Message is required" }, { status: 400 });
     }
 
-    const result = await model.generateContent(message);
+    const { embedding } = await embeddingModel.embedContent(message);
+    const embeddingString = `[${embedding.values.join(',')}]`;
+
+    // Query Neon DB using pg
+    const { rows: documents } = await pool.query(
+      'SELECT * FROM match_documents($1, $2, $3)',
+      [embeddingString, 0.7, 5] // query_embedding, match_threshold, match_count
+    );
+
+    const context = documents && documents.length > 0
+      ? documents.map((doc: any) => `[출처: ${doc.reference} (${doc.metadata.page}페이지)] ${doc.content}`).join('\n\n')
+      : 'No specific context found.';
+      
+    const augmentedPrompt = `
+      Context:
+      ${context}
+
+      Question:
+      ${message}
+    `;
+
+    const result = await chatModel.generateContent(augmentedPrompt);
     const response = await result.response;
     const text = response.text();
+    
+    const structuredResponse = JSON.parse(text);
 
-    return json({ reply: text });
+    return json({ reply: structuredResponse });
   } catch (error) {
-    console.error("Error calling Gemini API:", error);
+    console.error("Error in Gemini Action:", error);
+    if (error instanceof SyntaxError) {
+      return json({ error: "Failed to parse AI response as JSON." }, { status: 500 });
+    }
     return json({ error: "Failed to get response from AI" }, { status: 500 });
   }
 }; 

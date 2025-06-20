@@ -12,8 +12,10 @@ const MOCK_MESSAGES: IMessage[] = [
   {
     id: "1",
     role: "assistant",
-    text: "안녕하세요! 예비맘, 안심 톡입니다. 무엇이든 물어보세요.",
-    source: "튼튼맘의 임신출산백과",
+    content: {
+      answer: "안녕하세요! 예비맘, 안심 톡입니다. 무엇이든 물어보세요.",
+      sources: [] 
+    },
   },
 ];
 
@@ -45,7 +47,7 @@ export default function ChatPage() {
     const newUserMessage: IMessage = {
       id: String(Date.now()),
       role: "user",
-      text,
+      content: text,
     };
     setMessages((prev) => [...prev, newUserMessage]);
     setUserMessageCount(prev => prev + 1);
@@ -69,8 +71,7 @@ export default function ChatPage() {
       const aiResponse: IMessage = {
         id: String(Date.now() + 1),
         role: "assistant",
-        text: reply,
-        source: "Gemini AI"
+        content: reply,
       };
       setMessages((prev) => [...prev, aiResponse]);
     } catch (error) {
@@ -78,8 +79,10 @@ export default function ChatPage() {
       const errorResponse: IMessage = {
         id: String(Date.now() + 1),
         role: "assistant",
-        text: "죄송합니다. 답변을 생성하는 동안 오류가 발생했습니다.",
-        source: "Error"
+        content: {
+          answer: "죄송합니다. 답변을 생성하는 동안 오류가 발생했습니다.",
+          sources: []
+        },
       };
       setMessages((prev) => [...prev, errorResponse]);
     } finally {

@@ -1,6 +1,13 @@
+export interface ISource {
+  reference: string;
+  page?: number | string; // page can be number for books, or string for other things
+}
+
 export interface IMessage {
   id: string;
   role: "user" | "assistant";
-  text: string;
-  source?: string;
+  content: string | { 
+    answer: string;
+    sources: ISource[];
+  };
 } 

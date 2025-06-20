@@ -1,11 +1,21 @@
 import { Avatar, AvatarFallback } from "~/components/ui/avatar";
 import { Card, CardContent, CardFooter } from "~/components/ui/card";
 import { cn } from "~/lib/utils";
-import { Bot } from "lucide-react";
-import { IMessage } from "types";
+import { Bot, BookOpen } from "lucide-react";
+import { IMessage, ISource } from "types";
 
-export function ChatMessage({ role, text, source }: IMessage) {
+export function ChatMessage({ role, content }: IMessage) {
   const isUser = role === "user";
+
+  const renderContent = () => {
+    if (typeof content === 'string') {
+      return <p>{content}</p>;
+    }
+    return <p>{content.answer}</p>;
+  };
+
+  const sources = typeof content === 'object' && content.sources;
+
   return (
     <div
       className={cn(
@@ -22,18 +32,31 @@ export function ChatMessage({ role, text, source }: IMessage) {
       )}
       <Card
         className={cn(
-          "max-w-md",
+          "max-w-2xl",
           isUser
             ? "bg-primary text-primary-foreground"
             : "bg-muted"
         )}
       >
-        <CardContent className="p-3">
-          <p>{text}</p>
+        <CardContent className="p-4">
+          {renderContent()}
         </CardContent>
-        {!isUser && source && (
-          <CardFooter className="p-3 pt-0">
-            <p className="text-xs text-muted-foreground">출처: {source}</p>
+        {!isUser && sources && sources.length > 0 && (
+          <CardFooter className="p-4 pt-0 border-t mt-2">
+            <div>
+              <h4 className="text-xs font-semibold mb-2">참고 자료</h4>
+              <ul className="space-y-1">
+                {sources.map((source: ISource, index: number) => (
+                  <li key={index} className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <BookOpen className="h-4 w-4 flex-shrink-0" />
+                    <span>
+                      {source.reference}
+                      {source.page ? ` (p.${source.page})` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </CardFooter>
         )}
       </Card>
