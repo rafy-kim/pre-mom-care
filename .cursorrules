@@ -1,0 +1,34 @@
+## 패키지 매니저: npm 사용
+- **모든 패키지 설치 및 관리는 npm을 사용하세요.**
+
+---
+
+## ORM: Drizzle 사용
+- **데이터베이스 작업을 위해 ORM으로 Drizzle을 사용하세요.**
+- **Drizzle을 사용하여 데이터베이스 모델을 정의하고, CRUD 작업을 구현하세요.**
+
+---
+
+## 컴포넌트 생성: ShadCN 우선 사용
+- **모든 UI 컴포넌트는 ShadCN을 사용하여 생성하세요.**
+
+---
+
+## TypeScript 사용: TS 사용 권장
+- **프로젝트 전반에 TypeScript를 사용하세요.**
+- **타입 안정성을 위해 모든 컴포넌트와 서버 로직에 TypeScript를 적용하세요.**
+
+---
+
+## TypeScript 인터페이스 정의 규칙: 'I' 접두사 사용
+- **인터페이스 정의 시 이름 앞에 'I'를 접두사로 추가하세요.**
+- 예시:
+  ```typescript
+  export interface IComment {
+      id: string
+      text: string
+      author: string
+  }
+```
+- 인터페이스 생성은 types/index.ts 파일에 작성하세요.
+
