@@ -7,7 +7,7 @@ import { ChatInput } from "~/components/chat/ChatInput";
 import { ChatMessage } from "~/components/chat/ChatMessage";
 import { LoginBanner } from "~/components/auth/LoginBanner";
 import { IMessage } from "types";
-import { Avatar, AvatarFallback } from "~/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Bot } from "lucide-react";
 import { TypingIndicator } from "~/components/chat/TypingIndicator";
 
@@ -122,6 +122,7 @@ export default function ChatPage() {
         {isLoading && (
           <div className="flex items-start gap-3 justify-start">
             <Avatar>
+              <AvatarImage src="/ansimi.png" alt="안심이 마스코트" />
               <AvatarFallback>
                 <Bot className="h-6 w-6" />
               </AvatarFallback>

@@ -11,6 +11,11 @@ import stylesheet from "~/tailwind.css?url";
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: stylesheet },
   {
+    rel: "icon",
+    type: "image/png",
+    href: "/ansimi.png?v=1",
+  },
+  {
     rel: "stylesheet",
     href: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css",
   },

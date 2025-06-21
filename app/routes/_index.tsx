@@ -1,12 +1,11 @@
 import { Link } from "@remix-run/react";
-import { Baby } from "lucide-react";
 import { Button } from "~/components/ui/button";
 
 export default function Index() {
   return (
     <div className="flex min-h-screen flex-col bg-light-gray">
       <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
-        <Baby className="h-16 w-16 text-primary" />
+        <img src="/ansimi.png" alt="안심이 마스코트" className="h-24 w-24" />
         <h1 className="mt-6 text-4xl font-bold text-dark-gray">
           예비맘, 안심 톡
           </h1>

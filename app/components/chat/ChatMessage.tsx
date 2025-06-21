@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback } from "~/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Card, CardContent, CardFooter } from "~/components/ui/card";
 import { cn } from "~/lib/utils";
 import { Bot, BookOpen } from "lucide-react";
@@ -43,6 +43,7 @@ export function ChatMessage({ role, content }: IMessage) {
     >
       {!isUser && (
         <Avatar>
+          <AvatarImage src="/ansimi.png" alt="안심이 마스코트" />
           <AvatarFallback>
             <Bot className="h-6 w-6" />
           </AvatarFallback>
