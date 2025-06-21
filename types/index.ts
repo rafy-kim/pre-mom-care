@@ -5,6 +5,7 @@ export interface ISource {
 
 export interface IMessage {
   id: string;
+  chatId?: string;
   role: "user" | "assistant";
   content: string | { 
     answer: string;

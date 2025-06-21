@@ -116,7 +116,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-exp-03-07' });
 
   try {
-    const { message } = await request.json();
+    const { message, history } = await request.json();
 
     if (!message) {
       return json({ error: "Message is required" }, { status: 400 });
@@ -132,7 +132,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
 
     const context = groupAndFormatContext(documents);
-      
+    
+    // Format history for Gemini
+    const geminiHistory = (history || [])
+      .filter((msg: any) => msg.role === 'user' || msg.role === 'assistant')
+      .map((msg: any) => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: typeof msg.content === 'string' ? msg.content : msg.content.answer || '' }],
+      }));
+
+    // The Gemini API requires the history to start with a user role.
+    // If the first message is from the assistant (our initial greeting), we remove it.
+    if (geminiHistory.length > 0 && geminiHistory[0].role === 'model') {
+      geminiHistory.shift();
+    }
+
+    // Remove the last message from history as it's the current user question
+    geminiHistory.pop();
+
     const augmentedPrompt = `
       Context:
       ${context}
@@ -141,13 +158,41 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       ${message}
     `;
 
-    const result = await chatModel.generateContent(augmentedPrompt);
+    const chat = chatModel.startChat({
+      history: geminiHistory,
+    });
+
+    const result = await chat.sendMessage(augmentedPrompt);
     const response = await result.response;
     const text = response.text();
     
-    const structuredResponse = JSON.parse(text);
+    try {
+      // Clean the response text by removing markdown and extra characters
+      const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      
+      // Find the start and end of the main JSON object
+      const firstBrace = cleanedText.indexOf('{');
+      const lastBrace = cleanedText.lastIndexOf('}');
 
-    return json({ reply: structuredResponse });
+      if (firstBrace === -1 || lastBrace < firstBrace) {
+        throw new Error("No JSON object found in the response.");
+      }
+      
+      const jsonString = cleanedText.substring(firstBrace, lastBrace + 1);
+      
+      // Sanitize newlines within string values, as the model might not escape them properly.
+      const sanitizedJsonString = jsonString.replace(/"([^"\\]|\\.)*"/g, (match: string) => {
+        return match.replace(/\n/g, '\\n');
+      });
+      
+      const structuredResponse = JSON.parse(sanitizedJsonString);
+      return json({ reply: structuredResponse });
+    } catch (e) {
+      console.error("Failed to parse JSON response:", text);
+      // Re-throw the error to be caught by the outer catch block
+      throw e;
+    }
+
   } catch (error) {
     console.error("Error in Gemini Action:", error);
     if (error instanceof SyntaxError) {

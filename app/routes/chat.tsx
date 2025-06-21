@@ -1,37 +1,46 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bookmark, Settings } from "lucide-react";
+import { Bookmark, MessageSquarePlus } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { ChatInput } from "~/components/chat/ChatInput";
-import { ChatMessage } from "~/components/chat/ChatMessage";
 import { LoginBanner } from "~/components/auth/LoginBanner";
 import { IMessage } from "types";
-import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Bot } from "lucide-react";
-import { TypingIndicator } from "~/components/chat/TypingIndicator";
 import { type LoaderFunctionArgs, json, redirect } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
+import { Form, Link, Outlet, useLoaderData, useParams } from "@remix-run/react";
 import { getAuth } from "@clerk/remix/ssr.server";
 import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/remix";
-import { db, userProfiles } from "~/db";
-import { eq } from "drizzle-orm";
+import { db, userProfiles, chats } from "~/db";
+import { eq, desc } from "drizzle-orm";
+import { cn } from "~/lib/utils";
+import { ChatInput } from "~/components/chat/ChatInput";
+import { ChatMessage } from "~/components/chat/ChatMessage";
+import { TypingIndicator } from "~/components/chat/TypingIndicator";
+import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 
 export const loader = async (args: LoaderFunctionArgs) => {
   const { userId } = await getAuth(args);
 
-  if (userId) {
-    const userProfile = await db.query.userProfiles.findFirst({
-      where: eq(userProfiles.id, userId),
-    });
-
-    if (!userProfile) {
-      return redirect("/onboarding");
-    }
-    return json({ userProfile });
+  if (!userId) {
+    // Guest user, return with no user-specific data
+    return json({ userProfile: null, chatList: [] });
   }
 
-  return json({ userProfile: null });
+  // Logged-in user
+  const userProfile = await db.query.userProfiles.findFirst({
+    where: eq(userProfiles.id, userId),
+  });
+
+  if (!userProfile) {
+    return redirect("/onboarding");
+  }
+
+  const chatList = await db.query.chats.findMany({
+    where: eq(chats.userId, userId),
+    orderBy: [desc(chats.createdAt)],
+  });
+
+  return json({ userProfile, chatList });
 };
 
 const MOCK_MESSAGES: IMessage[] = [
@@ -45,11 +54,14 @@ const MOCK_MESSAGES: IMessage[] = [
   },
 ];
 
+
 export default function ChatPage() {
-  const { userProfile } = useLoaderData<typeof loader>();
+  const { userProfile, chatList } = useLoaderData<typeof loader>();
+  const params = useParams();
+
+  // --- Guest Mode Logic ---
   const [messages, setMessages] = useState<IMessage[]>(MOCK_MESSAGES);
   const [isLoading, setIsLoading] = useState(false);
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -57,10 +69,13 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    // This effect is for guest mode chat scrolling
+    if (!userProfile) {
+      scrollToBottom();
+    }
+  }, [messages, userProfile]);
 
-  const handleSendMessage = async (text: string) => {
+  const handleGuestSendMessage = async (text: string) => {
     const newUserMessage: IMessage = {
       id: String(Date.now()),
       role: "user",
@@ -72,18 +87,11 @@ export default function ChatPage() {
     try {
       const response = await fetch("/api/gemini", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
       });
-
-      if (!response.ok) {
-        throw new Error("API call failed");
-      }
-
+      if (!response.ok) throw new Error("API call failed");
       const { reply } = await response.json();
-
       const aiResponse: IMessage = {
         id: String(Date.now() + 1),
         role: "assistant",
@@ -105,43 +113,78 @@ export default function ChatPage() {
       setIsLoading(false);
     }
   };
-  
-  const isGuest = !userProfile;
+  // --- End Guest Mode Logic ---
 
-  let greeting = "아기를 만나기까지";
-  let dDayText = "D - ??";
-
+  // --- Logged-In Mode Render ---
   if (userProfile) {
-    greeting = `${userProfile.baby_nickname}를 만나기까지`;
-    
+    let greeting = `${userProfile.baby_nickname}를 만나기까지`;
     const dueDate = new Date(userProfile.dueDate);
     const today = new Date();
-    const dDay = Math.ceil(
-      (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    const dDay = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    let dDayText = dDay > 0 ? `D - ${dDay}` : dDay === 0 ? "D-Day" : `D + ${-dDay}`;
+    
+    return (
+      <div className="flex h-screen bg-light-gray">
+        <aside className="w-64 flex flex-col bg-white border-r">
+          <div className="p-4 border-b">
+            <Link to="/chat">
+              <Button className="w-full">
+                <MessageSquarePlus className="w-4 h-4 mr-2"/>
+                새 대화 시작
+              </Button>
+            </Link>
+          </div>
+          <nav className="flex-1 overflow-y-auto p-2 space-y-1">
+            {chatList.map((chat) => (
+              <Link to={`/chat/${chat.id}`} key={chat.id}>
+                <div className={cn(
+                  "p-2 rounded-md hover:bg-gray-100 cursor-pointer text-sm",
+                  params.chatId === chat.id && "bg-gray-200"
+                )}>
+                  {chat.title}
+                </div>
+              </Link>
+            ))}
+          </nav>
+          <div className="p-4 border-t">
+            <UserButton />
+          </div>
+        </aside>
+        <div className="flex flex-col flex-1">
+          <header className="border-b bg-white">
+            <div className="flex items-center justify-between w-full max-w-4xl p-4 mx-auto">
+              <div>
+                <h1 className="text-lg font-bold">{greeting}</h1>
+                <p className="text-sm text-muted-foreground">{dDayText}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon">
+                  <Bookmark className="w-5 h-5" />
+                </Button>
+              </div>
+            </div>
+          </header>
+          <main className="flex-1 flex flex-col overflow-y-hidden">
+            <Outlet />
+          </main>
+        </div>
+      </div>
     );
-    dDayText = dDay > 0 ? `D - ${dDay}` : dDay === 0 ? "D-Day" : `D + ${-dDay}`;
   }
 
+  // --- Guest Mode Render ---
   return (
     <div className="flex flex-col h-screen bg-light-gray">
       <header className="border-b bg-white">
         <div className="flex items-center justify-between w-full max-w-4xl p-4 mx-auto">
           <div>
-            <h1 className="text-lg font-bold">{greeting}</h1>
-            <p className="text-sm text-muted-foreground">{dDayText}</p>
+            <h1 className="text-lg font-bold">아기를 만나기까지</h1>
+            <p className="text-sm text-muted-foreground">D - ??</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon">
-              <Bookmark className="w-5 h-5" />
-            </Button>
-            <SignedIn>
-              <UserButton />
-            </SignedIn>
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button>시작하기</Button>
-              </SignInButton>
-            </SignedOut>
+            <SignInButton mode="modal">
+              <Button>시작하기</Button>
+            </SignInButton>
           </div>
         </div>
       </header>
@@ -166,16 +209,14 @@ export default function ChatPage() {
           )}
           <div ref={messagesEndRef} />
         </div>
-        {isGuest && (
-          <div className="w-full max-w-4xl px-4 mx-auto mt-auto pb-2">
-            <LoginBanner />
-          </div>
-        )}
+        <div className="w-full max-w-4xl px-4 mx-auto mt-auto pb-2">
+          <LoginBanner />
+        </div>
       </main>
 
       <footer className="bg-white border-t">
         <div className="w-full max-w-4xl p-4 mx-auto">
-          <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+          <ChatInput onSendMessage={handleGuestSendMessage} isLoading={isLoading} />
         </div>
       </footer>
     </div>
