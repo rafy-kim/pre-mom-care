@@ -1,34 +1,32 @@
 "use client";
 
 import { Button } from "~/components/ui/button";
-import { Card, CardContent } from "~/components/ui/card";
+import { SignInButton } from "@clerk/remix";
+import { Info } from "lucide-react";
 
-interface LoginBannerProps {
-  onLogin: () => void;
-  onDismiss: () => void;
-}
-
-export function LoginBanner({ onLogin, onDismiss }: LoginBannerProps) {
+export function LoginBanner() {
   return (
-    <div className="animate-in slide-in-from-bottom-5 fade-in duration-500">
-      <Card>
-        <CardContent className="p-4 flex items-center justify-between">
-          <p className="text-sm text-dark-gray">
-            소중한 대화 기록을 안전하게 저장하고 싶다면?
-          </p>
-          <div className="flex gap-2">
-            <Button
-              onClick={onLogin}
-              className="bg-yellow-400 text-black hover:bg-yellow-500"
-            >
-              카카오로 시작하기
-            </Button>
-            <Button variant="ghost" onClick={onDismiss}>
-              나중에 하기
-            </Button>
+    <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5">
+            <Info className="h-5 w-5 text-amber-600" />
           </div>
-        </CardContent>
-      </Card>
+          <div>
+            <p className="font-semibold text-amber-800">
+              '둘러보기' 모드는 대화가 저장되지 않아요.
+            </p>
+            <p className="text-sm text-amber-700">
+              소중한 대화 기록을 안전하게 보관하려면 로그인이 필요해요.
+            </p>
+          </div>
+        </div>
+        <div className="flex-shrink-0">
+          <SignInButton mode="modal">
+            <Button size="sm">시작하기</Button>
+          </SignInButton>
+        </div>
+      </div>
     </div>
   );
 } 

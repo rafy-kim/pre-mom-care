@@ -35,7 +35,7 @@ export default function Index() {
               </Button>
             </SignInButton>
             <Button asChild size="lg" variant="ghost" className="w-full">
-              <Link to="/onboarding">둘러보기</Link>
+              <Link to="/chat">둘러보기</Link>
             </Button>
           </div>
         </SignedOut>

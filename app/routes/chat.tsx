@@ -10,25 +10,45 @@ import { IMessage } from "types";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Bot } from "lucide-react";
 import { TypingIndicator } from "~/components/chat/TypingIndicator";
+import { type LoaderFunctionArgs, json, redirect } from "@remix-run/node";
+import { useLoaderData } from "@remix-run/react";
+import { getAuth } from "@clerk/remix/ssr.server";
+import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/remix";
+import { db, userProfiles } from "~/db";
+import { eq } from "drizzle-orm";
+
+export const loader = async (args: LoaderFunctionArgs) => {
+  const { userId } = await getAuth(args);
+
+  if (userId) {
+    const userProfile = await db.query.userProfiles.findFirst({
+      where: eq(userProfiles.id, userId),
+    });
+
+    if (!userProfile) {
+      return redirect("/onboarding");
+    }
+    return json({ userProfile });
+  }
+
+  return json({ userProfile: null });
+};
 
 const MOCK_MESSAGES: IMessage[] = [
   {
     id: "1",
     role: "assistant",
     content: {
-      answer: "안녕하세요! 예비맘, 안심 톡입니다. 무엇이든 물어보세요.",
+      answer: "안녕하세요! 저는 '안심이'에요. 무엇이든 물어보세요.",
       sources: [] 
     },
   },
 ];
 
 export default function ChatPage() {
+  const { userProfile } = useLoaderData<typeof loader>();
   const [messages, setMessages] = useState<IMessage[]>(MOCK_MESSAGES);
   const [isLoading, setIsLoading] = useState(false);
-  
-  // 로그인 기능 관련 상태
-  const [userMessageCount, setUserMessageCount] = useState(0);
-  const [showLoginBanner, setShowLoginBanner] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -39,12 +59,6 @@ export default function ChatPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-  
-  useEffect(() => {
-    if (userMessageCount >= 3) {
-      setShowLoginBanner(true);
-    }
-  }, [userMessageCount]);
 
   const handleSendMessage = async (text: string) => {
     const newUserMessage: IMessage = {
@@ -53,7 +67,6 @@ export default function ChatPage() {
       content: text,
     };
     setMessages((prev) => [...prev, newUserMessage]);
-    setUserMessageCount(prev => prev + 1);
     setIsLoading(true);
 
     try {
@@ -93,51 +106,77 @@ export default function ChatPage() {
     }
   };
   
-  const handleLogin = () => {
-    console.log("카카오 로그인 시도...");
-    setShowLoginBanner(false);
-  }
-  
-  const handleDismissBanner = () => {
-    setShowLoginBanner(false);
+  const isGuest = !userProfile;
+
+  let greeting = "아기를 만나기까지";
+  let dDayText = "D - ??";
+
+  if (userProfile) {
+    greeting = `${userProfile.baby_nickname}를 만나기까지`;
+    
+    const dueDate = new Date(userProfile.dueDate);
+    const today = new Date();
+    const dDay = Math.ceil(
+      (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    dDayText = dDay > 0 ? `D - ${dDay}` : dDay === 0 ? "D-Day" : `D + ${-dDay}`;
   }
 
   return (
     <div className="flex flex-col h-screen bg-light-gray">
-      <header className="flex items-center justify-between p-4 border-b bg-white">
-        <div>
-          <h1 className="text-lg font-bold">튼튼이 아빠, 안녕하세요!</h1>
-          <p className="text-sm text-muted-foreground">D-180</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="icon"><Bookmark className="h-5 w-5" /></Button>
-          <Button variant="ghost" size="icon"><Settings className="h-5 w-5" /></Button>
+      <header className="border-b bg-white">
+        <div className="flex items-center justify-between w-full max-w-4xl p-4 mx-auto">
+          <div>
+            <h1 className="text-lg font-bold">{greeting}</h1>
+            <p className="text-sm text-muted-foreground">{dDayText}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon">
+              <Bookmark className="w-5 h-5" />
+            </Button>
+            <SignedIn>
+              <UserButton />
+            </SignedIn>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <Button>시작하기</Button>
+              </SignInButton>
+            </SignedOut>
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg) => (
-          <ChatMessage key={msg.id} {...msg} />
-        ))}
-        {isLoading && (
-          <div className="flex items-start gap-3 justify-start">
-            <Avatar>
-              <AvatarImage src="/ansimi.png" alt="안심이 마스코트" />
-              <AvatarFallback>
-                <Bot className="h-6 w-6" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="bg-muted rounded-lg">
-              <TypingIndicator />
+      <main className="flex-1 flex flex-col overflow-y-hidden">
+        <div className="flex-1 w-full max-w-4xl px-4 pt-4 mx-auto space-y-4 overflow-y-auto no-scrollbar">
+          {messages.map((msg) => (
+            <ChatMessage key={msg.id} {...msg} />
+          ))}
+          {isLoading && (
+            <div className="flex items-start gap-3 justify-start">
+              <Avatar>
+                <AvatarImage src="/ansimi.png" alt="안심이 마스코트" />
+                <AvatarFallback>
+                  <Bot className="h-6 w-6" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="bg-muted rounded-lg">
+                <TypingIndicator />
+              </div>
             </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+        {isGuest && (
+          <div className="w-full max-w-4xl px-4 mx-auto mt-auto pb-2">
+            <LoginBanner />
           </div>
         )}
-        <div ref={messagesEndRef} />
       </main>
 
-      <footer className="p-4 bg-white border-t">
-        {showLoginBanner && <div className="mb-4"><LoginBanner onLogin={handleLogin} onDismiss={handleDismissBanner} /></div>}
-        <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+      <footer className="bg-white border-t">
+        <div className="w-full max-w-4xl p-4 mx-auto">
+          <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+        </div>
       </footer>
     </div>
   );

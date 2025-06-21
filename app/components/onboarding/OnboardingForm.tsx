@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useNavigate } from "@remix-run/react";
+import { Form, useNavigate } from "@remix-run/react";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
 
@@ -23,30 +23,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 
 export function OnboardingForm() {
   const navigate = useNavigate();
-  const [nickname, setNickname] = useState("");
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [gender, setGender] = useState("");
   const [relation, setRelation] = useState("");
-
-  const isFormComplete = nickname && dueDate && gender && relation;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isFormComplete) return;
-
-    const onboardingData = {
-      nickname,
-      dueDate: dueDate ? format(dueDate, "yyyy-MM-dd") : null,
-      gender,
-      relation,
-    };
-
-    console.log(onboardingData);
-    
-    // For now, we'll just navigate. Later, we might save this data.
-    navigate("/chat");
-  };
+  
+  // All fields except nickname are derived from state
+  const isFormComplete = dueDate && gender && relation;
 
   return (
     <Card className="w-full max-w-lg mx-auto">
@@ -58,14 +41,14 @@ export function OnboardingForm() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <Form method="post" action="/api/onboarding" className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="nickname">아기 태명</Label>
             <Input
               id="nickname"
+              name="baby_nickname"
               placeholder="예: 튼튼이"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
+              required
             />
           </div>
           <div className="space-y-2">
@@ -128,10 +111,16 @@ export function OnboardingForm() {
               <ToggleGroupItem value="father">아빠</ToggleGroupItem>
             </ToggleGroup>
           </div>
+          
+          {/* Hidden fields to submit state values */}
+          {dueDate && <input type="hidden" name="dueDate" value={format(dueDate, "yyyy-MM-dd")} />}
+          {gender && <input type="hidden" name="gender" value={gender} />}
+          {relation && <input type="hidden" name="relation" value={relation} />}
+
           <Button type="submit" className="w-full" disabled={!isFormComplete}>
             완료
           </Button>
-        </form>
+        </Form>
       </CardContent>
     </Card>
   );
