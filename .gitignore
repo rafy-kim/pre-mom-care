@@ -4,3 +4,7 @@ node_modules
 /build
 .env
 .env.local
+
+# Add custom ignores below
+public/ansimi.jpg
+.DS_Store
