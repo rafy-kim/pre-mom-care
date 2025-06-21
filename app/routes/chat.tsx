@@ -200,26 +200,40 @@ export default function ChatPage() {
               )}
             </div>
           </aside>
-          <div className="flex flex-col flex-1">
+          <div className="flex flex-1 flex-col">
             <header className="border-b bg-white">
-              <div className="flex items-center justify-between w-full max-w-4xl p-4 mx-auto">
+              <div className="mx-auto flex w-full max-w-4xl items-center justify-between p-4">
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsSidebarOpen(true)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="md:hidden"
+                    onClick={() => setIsSidebarOpen(true)}
+                  >
                     <Menu className="h-6 w-6" />
                   </Button>
-                  <div>
-                    <h1 className="text-lg font-bold">{greeting}</h1>
-                    <p className="text-sm text-muted-foreground">{dDayText}</p>
-                  </div>
+                  <Link to="/chat">
+                    <div className="flex items-center gap-2">
+                      <img
+                        src="/ansimi.png"
+                        alt="안심이 로고"
+                        className="h-8 w-8"
+                      />
+                      <span className="text-xl font-bold text-dark-gray">
+                        예비맘, 안심 톡
+                      </span>
+                    </div>
+                  </Link>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon">
-                    <Bookmark className="w-5 h-5" />
-                  </Button>
+                  <div className="text-right">
+                    <h1 className="text-sm font-bold">{greeting}</h1>
+                    <p className="text-xs text-muted-foreground">{dDayText}</p>
+                  </div>
                 </div>
               </div>
             </header>
-            <main className="flex-1 flex flex-col overflow-y-hidden">
+            <main className="flex flex-1 flex-col overflow-y-hidden">
               <Outlet />
             </main>
           </div>
@@ -258,16 +272,24 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-screen bg-light-gray">
       <header className="border-b bg-white">
-        <div className="flex items-center justify-between w-full max-w-4xl p-4 mx-auto">
-          <div>
-            <h1 className="text-lg font-bold">아기를 만나기까지</h1>
-            <p className="text-sm text-muted-foreground">D - ??</p>
-          </div>
-          <div className="flex items-center gap-2">
+      <div className="mx-auto flex w-full max-w-4xl items-center justify-between p-4">
+          <Link to="/chat">
+            <div className="flex items-center gap-2">
+              <img
+                src="/ansimi.png"
+                alt="안심이 로고"
+                className="h-8 w-8"
+              />
+              <span className="text-xl font-bold text-dark-gray">
+                예비맘, 안심 톡
+              </span>
+            </div>
+          </Link>
+          <SignedOut>
             <SignInButton mode="modal">
               <Button>시작하기</Button>
             </SignInButton>
-          </div>
+          </SignedOut>
         </div>
       </header>
 

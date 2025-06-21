@@ -10,9 +10,9 @@ import {
 import { useFetcher, useLoaderData } from "@remix-run/react";
 import { getAuth } from "@clerk/remix/ssr.server";
 import { nanoid } from "nanoid";
-import { and, eq } from "drizzle-orm";
+import { and, eq, desc, asc, isNotNull, sql } from "drizzle-orm";
 
-import { db, chats, messages } from "~/db";
+import { db, chats, messages, bookmarks } from "~/db";
 import { IMessage } from "types";
 
 import { ChatInput } from "~/components/chat/ChatInput";
@@ -42,10 +42,25 @@ export const loader = async (args: LoaderFunctionArgs) => {
     return redirect("/chat");
   }
 
-  const messageList = await db.query.messages.findMany({
-    where: eq(messages.chatId, chatId),
-    orderBy: (messages, { asc }) => [asc(messages.createdAt)],
-  });
+  const messageList = await db
+    .select({
+      id: messages.id,
+      chatId: messages.chatId,
+      role: messages.role,
+      content: messages.content,
+      createdAt: messages.createdAt,
+      isBookmarked: isNotNull(bookmarks.id),
+    })
+    .from(messages)
+    .leftJoin(
+      bookmarks,
+      and(
+        eq(bookmarks.messageId, messages.id),
+        eq(bookmarks.userId, userId),
+      ),
+    )
+    .where(eq(messages.chatId, chatId))
+    .orderBy(asc(messages.createdAt));
 
   return json({
     chatId,
@@ -160,6 +175,7 @@ export default function ChatIdPage() {
   const isLoading = fetcher.state !== "idle";
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const highlightedMessageRef = useRef<HTMLDivElement>(null);
 
   // loader로부터 새로운 initialMessages가 전달될 때마다 messages 상태를 업데이트합니다.
   useEffect(() => {
@@ -167,13 +183,39 @@ export default function ChatIdPage() {
   }, [initialMessages]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (highlightedMessageRef.current) {
+      highlightedMessageRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   useEffect(() => {
+    // Scroll to bottom on new message
     scrollToBottom();
   }, [messages]);
-  
+
+  useEffect(() => {
+    // Scroll to highlighted message from bookmark
+    const hash = window.location.hash;
+    if (hash) {
+      const element = document.getElementById(hash.substring(1));
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('bg-yellow-200/50', 'dark:bg-yellow-800/50');
+        setTimeout(() => {
+          element.classList.remove(
+            'bg-yellow-200/50',
+            'dark:bg-yellow-800/50',
+          );
+        }, 2000);
+      }
+    }
+  }, [chatId]); // Re-run when switching chats
+
   // Add new message from fetcher optimistic UI
   useEffect(() => {
     if (fetcher.data && "message" in fetcher.data) {
@@ -183,7 +225,6 @@ export default function ChatIdPage() {
         }
     }
   }, [fetcher.data, messages, chatId]);
-
 
   const handleSendMessage = (text: string) => {
     const newUserMessage: IMessage = {
@@ -199,13 +240,17 @@ export default function ChatIdPage() {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 w-full max-w-4xl px-4 pt-4 mx-auto space-y-4 overflow-y-auto no-scrollbar">
+    <div className="flex h-full flex-col">
+      <div className="no-scrollbar w-full flex-1 space-y-4 overflow-y-auto px-4 pt-4 max-w-4xl mx-auto">
         {messages.map((msg) => (
-          <ChatMessage key={msg.id} {...msg} />
+          <ChatMessage
+            key={msg.id}
+            {...(msg as IMessage)}
+            isBookmarked={(msg as any).isBookmarked}
+          />
         ))}
         {isLoading && (
-          <div className="flex items-start gap-3 justify-start">
+          <div className="flex items-start justify-start gap-3">
             <Avatar>
               <AvatarImage src="/ansimi.png" alt="안심이 마스코트" />
               <AvatarFallback>
@@ -220,7 +265,7 @@ export default function ChatIdPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      <footer className="bg-white border-t">
+      <footer className="border-t bg-white">
         <div className="w-full max-w-4xl p-4 mx-auto">
           <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
         </div>

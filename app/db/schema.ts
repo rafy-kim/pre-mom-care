@@ -13,6 +13,7 @@ export const userProfiles = pgTable("user_profiles", {
 
 export const userProfilesRelations = relations(userProfiles, ({ many }) => ({
   chats: many(chats),
+  bookmarks: many(bookmarks),
 }));
 
 export const chats = pgTable("chats", {
@@ -46,9 +47,34 @@ export const messages = pgTable("messages", {
     .notNull(),
 });
 
-export const messagesRelations = relations(messages, ({ one }) => ({
+export const messagesRelations = relations(messages, ({ one, many }) => ({
   chat: one(chats, {
     fields: [messages.chatId],
     references: [chats.id],
+  }),
+  bookmarks: many(bookmarks),
+}));
+
+export const bookmarks = pgTable("bookmarks", {
+  id: varchar("id", { length: 256 }).primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => userProfiles.id, { onDelete: "cascade" }),
+  messageId: varchar("message_id", { length: 256 })
+    .notNull()
+    .references(() => messages.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const bookmarksRelations = relations(bookmarks, ({ one }) => ({
+  user: one(userProfiles, {
+    fields: [bookmarks.userId],
+    references: [userProfiles.id],
+  }),
+  message: one(messages, {
+    fields: [bookmarks.messageId],
+    references: [messages.id],
   }),
 }));

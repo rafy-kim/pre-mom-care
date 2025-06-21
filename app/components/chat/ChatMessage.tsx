@@ -1,13 +1,30 @@
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Card, CardContent, CardFooter } from "~/components/ui/card";
 import { cn } from "~/lib/utils";
-import { Bot, BookOpen } from "lucide-react";
+import { Bot, BookOpen, Bookmark } from "lucide-react";
 import { IMessage, ISource } from "types";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useFetcher } from '@remix-run/react';
+import { Button } from '../ui/button';
 
-export function ChatMessage({ role, content }: IMessage) {
+interface ChatMessageProps extends IMessage {
+  isBookmarked?: boolean;
+}
+
+export function ChatMessage({
+  id,
+  role,
+  content,
+  isBookmarked,
+}: ChatMessageProps) {
   const isUser = role === "user";
+  const fetcher = useFetcher();
+
+  // Optimistic UI for bookmark
+  const isCurrentlyBookmarked = fetcher.formData
+    ? fetcher.formData.get('intent') === 'bookmark'
+    : isBookmarked;
 
   const renderContent = () => {
     const textContent = typeof content === 'string' ? content : content.answer;
@@ -37,9 +54,10 @@ export function ChatMessage({ role, content }: IMessage) {
   return (
     <div
       className={cn(
-        "flex items-start gap-3",
+        "group flex items-start gap-3",
         isUser ? "justify-end" : "justify-start"
       )}
+      id={id}
     >
       {!isUser && (
         <Avatar>
@@ -49,36 +67,64 @@ export function ChatMessage({ role, content }: IMessage) {
           </AvatarFallback>
         </Avatar>
       )}
-      <Card
-        className={cn(
-          "max-w-2xl",
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted"
+      <div className={cn('relative', !isUser && 'flex-1')}>
+        <Card
+          className={cn(
+            "max-w-2xl",
+            isUser
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted",
+            !isUser && "pr-12" // Add padding for the bookmark button
+          )}
+        >
+          <CardContent className="p-4">
+            {renderContent()}
+          </CardContent>
+          {!isUser && sources && sources.length > 0 && (
+            <CardFooter className="mt-2 border-t p-4 pt-0">
+              <div>
+                <h4 className="mb-2 text-xs font-semibold">참고 자료</h4>
+                <ul className="space-y-1">
+                  {sources.map((source: ISource, index: number) => (
+                    <li
+                      key={index}
+                      className="flex items-center gap-2 text-xs text-muted-foreground"
+                    >
+                      <BookOpen className="h-4 w-4 flex-shrink-0" />
+                      <span>
+                        {source.reference}
+                        {source.page ? ` (p.${source.page})` : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </CardFooter>
+          )}
+        </Card>
+        {!isUser && (
+          <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
+            <fetcher.Form method="post" action="/api/bookmark">
+              <input type="hidden" name="messageId" value={id} />
+              <Button
+                type="submit"
+                name="intent"
+                value={isCurrentlyBookmarked ? 'unbookmark' : 'bookmark'}
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+              >
+                <Bookmark
+                  className={cn(
+                    'h-4 w-4',
+                    isCurrentlyBookmarked && 'fill-yellow-400 text-yellow-500',
+                  )}
+                />
+              </Button>
+            </fetcher.Form>
+          </div>
         )}
-      >
-        <CardContent className="p-4">
-          {renderContent()}
-        </CardContent>
-        {!isUser && sources && sources.length > 0 && (
-          <CardFooter className="p-4 pt-0 border-t mt-2">
-            <div>
-              <h4 className="text-xs font-semibold mb-2">참고 자료</h4>
-              <ul className="space-y-1">
-                {sources.map((source: ISource, index: number) => (
-                  <li key={index} className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <BookOpen className="h-4 w-4 flex-shrink-0" />
-                    <span>
-                      {source.reference}
-                      {source.page ? ` (p.${source.page})` : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </CardFooter>
-        )}
-      </Card>
+      </div>
     </div>
   );
 } 

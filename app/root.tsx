@@ -10,7 +10,6 @@ import type { LinksFunction, LoaderFunction } from "@remix-run/node";
 import stylesheet from "~/tailwind.css?url";
 import { ClerkApp, useAuth } from "@clerk/remix";
 import { rootAuthLoader } from "@clerk/remix/ssr.server";
-import { Header } from "./components/auth/Header";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: stylesheet },
@@ -52,7 +51,6 @@ function App() {
 
   return (
     <>
-      {showHeader && <Header />}
       <Outlet />
     </>
   );
