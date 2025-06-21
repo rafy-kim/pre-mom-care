@@ -62,12 +62,36 @@ export const action = async (args: ActionFunctionArgs) => {
     return json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const formData = await args.request.formData();
+  const intent = formData.get("_action");
+
+  if (intent === "delete") {
+    const { chatId } = args.params;
+    if (!chatId) {
+      return json({ error: "Chat ID is required" }, { status: 400 });
+    }
+    
+    // Verify user owns the chat before deleting
+    const chat = await db.query.chats.findFirst({
+      where: and(eq(chats.id, chatId), eq(chats.userId, userId)),
+    });
+
+    if (!chat) {
+      return json({ error: "Chat not found or permission denied" }, { status: 404 });
+    }
+
+    await db.delete(chats).where(eq(chats.id, chatId));
+    
+    // Redirect to the main chat page so the user doesn't see the deleted chat
+    return redirect("/chat");
+  }
+
+  // Fallback to existing message sending logic
   const { chatId } = args.params;
   if (!chatId) {
     return json({ error: "Chat ID is required" }, { status: 400 });
   }
 
-  const formData = await args.request.formData();
   const userMessageContent = formData.get("message") as string;
   if (!userMessageContent) {
     return json({ error: "Message is required" }, { status: 400 });
