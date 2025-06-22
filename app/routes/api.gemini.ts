@@ -60,12 +60,7 @@ function groupAndFormatContext(documents: any[]): string {
     return 'No specific context found.';
   }
 
-  console.log('Processing documents in groupAndFormatContext:', documents.map(d => ({ 
-    ref_type: d.ref_type, 
-    reference: d.reference, 
-    title: d.title,
-    metadata: d.metadata 
-  })));
+
 
   // 1. Group documents by reference and refType
   const groupedByReference: { [key: string]: any[] } = documents.reduce((acc, doc) => {
@@ -166,7 +161,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       [embeddingString, 0.7, 10] // query_embedding, match_threshold, match_count (5 -> 10)
     );
 
-    console.log('Database documents:', JSON.stringify(documents, null, 2));
     const context = groupAndFormatContext(documents);
     
     // Format history for Gemini
