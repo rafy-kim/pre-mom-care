@@ -97,36 +97,45 @@ export function ChatMessage({
                       )}
                       <div className="flex-1">
                         {source.refType === 'youtube' ? (
-                          <>
-                            {source.videoUrl ? (
-                              <a
-                                href={source.videoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hover:text-blue-600 hover:underline transition-colors"
-                              >
-                                <div className="font-medium text-gray-700">
-                                  {source.videoTitle || source.reference}
-                                </div>
-                                {source.timestamp !== undefined && (
-                                  <div className="text-xs text-gray-500 mt-0.5">
-                                    {Math.floor(source.timestamp / 60)}:{(source.timestamp % 60).toString().padStart(2, '0')}
-                                  </div>
-                                )}
-                              </a>
-                            ) : (
-                              <>
-                                <div className="font-medium text-gray-700">
-                                  {source.videoTitle || source.reference}
-                                </div>
-                                {source.timestamp !== undefined && (
-                                  <div className="text-xs text-gray-500 mt-0.5">
-                                    {Math.floor(source.timestamp / 60)}:{(source.timestamp % 60).toString().padStart(2, '0')}
-                                  </div>
-                                )}
-                              </>
+                          <div className="space-y-1">
+                            {/* 채널명 */}
+                            <div className="text-xs text-gray-500 font-medium">
+                              📺 {source.reference}
+                            </div>
+                            
+                            {/* 영상 제목 */}
+                            <div className="text-xs text-gray-600 leading-tight">
+                              {source.videoTitle && source.videoTitle !== source.reference ? source.videoTitle : '영상 제목'}
+                            </div>
+                            
+                            {/* 재생 시간들 */}
+                            {source.timestamps && source.timestamps.length > 0 ? (
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {source.timestamps.map((time, idx) => (
+                                  <a
+                                    key={idx}
+                                    href={time.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                                  >
+                                    🕒 {Math.floor(time.seconds / 60)}:{Math.floor(time.seconds % 60).toString().padStart(2, '0')}
+                                  </a>
+                                ))}
+                              </div>
+                            ) : source.timestamp !== undefined && (
+                              <div className="flex items-center gap-1 text-xs">
+                                <a
+                                  href={source.videoUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                                >
+                                  🕒 {Math.floor(source.timestamp / 60)}:{Math.floor(source.timestamp % 60).toString().padStart(2, '0')}
+                                </a>
+                              </div>
                             )}
-                          </>
+                          </div>
                         ) : (
                           <span>
                             {source.reference}

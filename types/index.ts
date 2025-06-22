@@ -5,6 +5,10 @@ export interface ISource {
   videoTitle?: string;
   videoUrl?: string;
   timestamp?: number; // in seconds
+  timestamps?: {
+    seconds: number;
+    url: string;
+  }[];
 }
 
 export interface IMessage {

@@ -62,13 +62,23 @@ function groupAndFormatContext(documents: any[]): string {
 
 
 
-  // 1. Group documents by reference and refType
+  // 1. Group documents by reference, refType, and videoId for YouTube
   const groupedByReference: { [key: string]: any[] } = documents.reduce((acc, doc) => {
-    const key = `${doc.reference}|${doc.ref_type}`;
-    if (!acc[key]) {
-      acc[key] = [];
+    if (doc.ref_type === 'youtube') {
+      // For YouTube, group by videoId instead of just reference
+      const videoId = doc.metadata?.videoId || 'unknown';
+      const key = `${doc.reference}|${doc.ref_type}|${videoId}`;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(doc);
+    } else {
+      const key = `${doc.reference}|${doc.ref_type}`;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(doc);
     }
-    acc[key].push(doc);
     return acc;
   }, {});
 
@@ -76,7 +86,9 @@ function groupAndFormatContext(documents: any[]): string {
 
   // 2. Process each group
   for (const key in groupedByReference) {
-    const [ref, refType] = key.split('|');
+    const parts = key.split('|');
+    const ref = parts[0];
+    const refType = parts[1];
     const group = groupedByReference[key];
 
     if (refType === 'book') {
@@ -105,17 +117,20 @@ function groupAndFormatContext(documents: any[]): string {
       const combinedContent = currentRange.map(doc => doc.content).join('\n');
       formattedContexts.push(`[출처: ${ref} (${pageStr}페이지)] ${combinedContent}`);
     } else if (refType === 'youtube') {
-      // Handle YouTube videos - format with timestamp
-      group.forEach(doc => {
+      // Handle YouTube videos - group all timestamps for same video
+      group.sort((a, b) => (a.metadata?.seconds || 0) - (b.metadata?.seconds || 0));
+      
+      const videoId = parts[2];
+      const videoTitle = group[0].title;
+      const timestamps = group.map(doc => {
         const seconds = doc.metadata?.seconds || 0;
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = seconds % 60;
-        const timestamp = `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-        const url = doc.metadata?.url || '';
-        const videoId = doc.metadata?.videoId || '';
-        
-        formattedContexts.push(`[YouTube영상출처: ${doc.title} (${timestamp}) - URL: ${url} - VideoID: ${videoId}] ${doc.content}`);
-      });
+        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+      }).join(', ');
+      
+      const combinedContent = group.map(doc => doc.content).join('\n');
+      formattedContexts.push(`[YouTube영상출처: ${videoTitle} (${timestamps}) - VideoID: ${videoId}] ${combinedContent}`);
     } else {
       // Handle other types (papers, etc.)
       group.forEach(doc => {
@@ -125,6 +140,109 @@ function groupAndFormatContext(documents: any[]): string {
   }
 
   return formattedContexts.join('\n\n');
+}
+
+/**
+ * Groups documents for the sources array in the response.
+ * Same grouping logic as groupAndFormatContext, but returns structured data.
+ */
+function groupDocumentsForSources(documents: any[]): any[] {
+  if (!documents || documents.length === 0) {
+    return [];
+  }
+
+  // 1. Group documents by reference, refType, and videoId for YouTube
+  const groupedByReference: { [key: string]: any[] } = documents.reduce((acc, doc) => {
+    if (doc.ref_type === 'youtube') {
+      // For YouTube, group by videoId instead of just reference
+      const videoId = doc.metadata?.videoId || 'unknown';
+      const key = `${doc.reference}|${doc.ref_type}|${videoId}`;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(doc);
+    } else {
+      const key = `${doc.reference}|${doc.ref_type}`;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(doc);
+    }
+    return acc;
+  }, {});
+
+  const groupedSources: any[] = [];
+
+  // 2. Process each group
+  for (const key in groupedByReference) {
+    const parts = key.split('|');
+    const ref = parts[0];
+    const refType = parts[1];
+    const group = groupedByReference[key];
+
+    if (refType === 'book') {
+      // Handle books - group consecutive pages
+      group.sort((a, b) => (a.metadata?.page || 0) - (b.metadata?.page || 0));
+
+      let currentRange = [group[0]];
+
+      for (let i = 1; i < group.length; i++) {
+        // Check if the page is consecutive
+        if (group[i].metadata?.page === group[i - 1].metadata?.page + 1) {
+          currentRange.push(group[i]);
+        } else {
+          // End of a consecutive range, create source object
+          const pages = currentRange.map(doc => doc.metadata?.page).filter(Boolean);
+          const pageStr = pages.length > 1 ? `${pages[0]}-${pages[pages.length - 1]}` : `${pages[0]}`;
+          groupedSources.push({
+            reference: ref,
+            page: pageStr,
+            refType: 'book'
+          });
+          currentRange = [group[i]];
+        }
+      }
+      
+      // Push the last range
+      const pages = currentRange.map(doc => doc.metadata?.page).filter(Boolean);
+      const pageStr = pages.length > 1 ? `${pages[0]}-${pages[pages.length - 1]}` : `${pages[0]}`;
+      groupedSources.push({
+        reference: ref,
+        page: pageStr,
+        refType: 'book'
+      });
+    } else if (refType === 'youtube') {
+      // Handle YouTube videos - group all timestamps for same video
+      group.sort((a, b) => (a.metadata?.seconds || 0) - (b.metadata?.seconds || 0));
+      
+      const videoId = parts[2];
+      const videoTitle = group[0].title;
+      const baseUrl = group[0].metadata?.url?.split('&t=')[0] || '';
+      
+      const timestamps = group.map(doc => ({
+        seconds: doc.metadata?.seconds || 0,
+        url: `${baseUrl}&t=${doc.metadata?.seconds || 0}s`
+      }));
+      
+      groupedSources.push({
+        reference: ref,
+        refType: 'youtube',
+        videoTitle: videoTitle,
+        videoUrl: baseUrl,
+        timestamps: timestamps
+      });
+    } else {
+      // Handle other types (papers, etc.)
+      group.forEach(doc => {
+        groupedSources.push({
+          reference: ref,
+          refType: refType || 'paper'
+        });
+      });
+    }
+  }
+
+  return groupedSources;
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -216,6 +334,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
       
       const structuredResponse = JSON.parse(sanitizedJsonString);
+      
+      // Replace the sources array with grouped sources
+      if (structuredResponse.sources) {
+        structuredResponse.sources = groupDocumentsForSources(documents);
+      }
+      
       return json({ reply: structuredResponse });
     } catch (e) {
       console.error("Failed to parse JSON response:", text);
