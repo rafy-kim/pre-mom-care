@@ -27,6 +27,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "~/components/ui/alert-dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "~/components/ui/tabs";
 
 export const loader = async (args: LoaderFunctionArgs) => {
   const { userId } = await getAuth(args);
@@ -150,47 +156,73 @@ export default function ChatPage() {
             "absolute top-0 left-0 z-20 flex h-full w-64 flex-col border-r bg-white transition-transform duration-300 ease-in-out md:relative md:translate-x-0",
             isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           )}>
-            <div className="p-4 border-b flex justify-between items-center">
-              <Link to="/chat" className="flex-grow mr-2">
-                <Button className="w-full">
-                  <MessageSquarePlus className="w-4 h-4 mr-2"/>
-                  새 대화 시작
+            <Tabs defaultValue="chat" className="flex flex-col flex-1 h-full overflow-y-hidden">
+              <div className="relative flex-shrink-0 p-4 border-b">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="chat">채팅</TabsTrigger>
+                  <TabsTrigger value="bookmark">북마크</TabsTrigger>
+                </TabsList>
+                <Button variant="ghost" size="icon" className="absolute top-2.5 right-2 md:hidden" onClick={() => setIsSidebarOpen(false)}>
+                  <X className="w-5 h-5" />
                 </Button>
-              </Link>
-              <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsSidebarOpen(false)}>
-                <X className="h-6 w-6" />
-              </Button>
-            </div>
-            <nav className="flex-1 overflow-y-auto p-2 space-y-1">
-              {chatList.map((chat) => (
-                <div key={chat.id} className="flex items-center justify-between rounded-md group">
-                  <Link 
-                    to={`/chat/${chat.id}`} 
-                    className="flex-grow p-2 text-sm truncate rounded-md hover:bg-gray-100"
-                    onClick={() => setIsSidebarOpen(false)}
-                  >
-                    <div className={cn(params.chatId === chat.id && "font-semibold")}>
-                      {chat.title}
+              </div>
+
+              <div className="flex-1 overflow-y-auto">
+                <TabsContent value="chat" className="flex flex-col h-full m-0">
+                  <div className="p-4">
+                    <Link to="/chat" className="w-full">
+                      <Button className="w-full">
+                        <MessageSquarePlus className="w-4 h-4 mr-2"/>
+                        새 대화 시작
+                      </Button>
+                    </Link>
+                  </div>
+                  <nav className="flex-1 p-2 space-y-1 overflow-y-auto border-t">
+                    {chatList.map((chat) => (
+                      <div
+                        key={chat.id}
+                        className={cn(
+                          "flex items-center justify-between rounded-md group hover:bg-gray-100",
+                          params.chatId === chat.id && "bg-gray-200"
+                        )}
+                      >
+                        <Link
+                          to={`/chat/${chat.id}`}
+                          className={cn(
+                            "flex-grow p-2 text-sm truncate",
+                            params.chatId === chat.id && "font-semibold"
+                          )}
+                          onClick={() => setIsSidebarOpen(false)}
+                        >
+                          {chat.title}
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="flex-shrink-0 w-8 h-8 opacity-0 group-hover:opacity-100 mx-1"
+                          onClick={() => {
+                            setChatToDelete(chat.id);
+                            setIsDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-gray-400 hover:text-gray-800" />
+                        </Button>
+                      </div>
+                    ))}
+                  </nav>
+                </TabsContent>
+                <TabsContent value="bookmark" className="p-4 m-0">
+                   <div className="text-center text-sm text-gray-500">
+                      북마크한 대화가 여기에 표시됩니다.
                     </div>
-                  </Link>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="w-6 h-6 flex-shrink-0"
-                    onClick={() => {
-                      setChatToDelete(chat.id);
-                      setIsDeleteDialogOpen(true);
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-gray-300" />
-                  </Button>
-                </div>
-              ))}
-            </nav>
-            <div className="p-4 border-t flex items-center gap-2">
+                </TabsContent>
+              </div>
+            </Tabs>
+            
+            <div className="flex-shrink-0 p-4 border-t flex items-center gap-2">
               <UserButton />
               {userProfile && (
-                <div className="text-sm">
+                <div className="text-sm overflow-hidden text-ellipsis whitespace-nowrap">
                   <p className="font-semibold">{`${userProfile.baby_nickname} ${
                     userProfile.relation === 'father' ? '아빠' : 
                     userProfile.relation === 'mother' ? '엄마' : 
@@ -227,8 +259,8 @@ export default function ChatPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="text-right">
-                    <h1 className="text-sm font-bold">{greeting}</h1>
-                    <p className="text-xs text-muted-foreground">{dDayText}</p>
+                    <p className="text-xs text-muted-foreground">{greeting}</p>
+                    <h1 className="text-sm font-bold">{dDayText}</h1>
                   </div>
                 </div>
               </div>
