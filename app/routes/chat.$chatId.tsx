@@ -133,12 +133,21 @@ export const action = async (args: ActionFunctionArgs) => {
 
   const fullHistory = [...history, userMessage];
 
-  // 2. Call AI
+  // 2. Call AI - 내부 서버 통신이므로 인증 정보가 자동으로 포함됨
   const geminiResponse = await fetch(
     new URL("/api/gemini", args.request.url),
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        // Clerk 인증 정보만 선택적으로 전달
+        ...(args.request.headers.get("authorization") && {
+          "authorization": args.request.headers.get("authorization")!
+        }),
+        ...(args.request.headers.get("cookie") && {
+          "cookie": args.request.headers.get("cookie")!
+        })
+      },
       body: JSON.stringify({ 
         message: userMessageContent, // The current question for vector search
         history: fullHistory // The full conversation history for context

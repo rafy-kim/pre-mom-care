@@ -9,7 +9,7 @@ import { Bot } from "lucide-react";
 import { type LoaderFunctionArgs, json, redirect } from "@remix-run/node";
 import { Form, Link, Outlet, useFetcher, useLoaderData, useParams, useLocation } from "@remix-run/react";
 import { getAuth } from "@clerk/remix/ssr.server";
-import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/remix";
+import { SignedIn, SignedOut, UserButton, SignInButton, useAuth } from "@clerk/remix";
 import { db, userProfiles, chats, bookmarks } from "~/db";
 import { eq, desc } from "drizzle-orm";
 import { cn } from "~/lib/utils";
@@ -98,6 +98,7 @@ function getMessagePreview(content: any): string {
 
 export default function ChatPage() {
   const { userProfile, chatList, bookmarks: userBookmarks } = useLoaderData<typeof loader>();
+  const { getToken } = useAuth();
   const params = useParams();
   const location = useLocation();
   const fetcher = useFetcher();
@@ -134,9 +135,20 @@ export default function ChatPage() {
     setIsLoading(true);
 
     try {
+      // Clerk 토큰을 포함하여 API 호출
+      const token = await getToken();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json"
+      };
+      
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch("/api/gemini", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
+        credentials: 'include', // 쿠키 포함
         body: JSON.stringify({ message: text }),
       });
       if (!response.ok) throw new Error("API call failed");

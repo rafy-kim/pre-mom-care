@@ -29,6 +29,7 @@ export const action = async (args: ActionFunctionArgs) => {
         dueDate: new Date(dueDate),
         gender: gender as "boy" | "girl" | "unknown",
         relation: relation as "mother" | "father",
+        membershipTier: "basic",
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({

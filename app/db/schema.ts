@@ -24,6 +24,9 @@ export const userProfiles = pgTable("user_profiles", {
   dueDate: timestamp("due_date").notNull(),
   gender: text("gender", { enum: ["boy", "girl", "unknown"] }).notNull(),
   relation: text("relation", { enum: ["mother", "father"] }).notNull(),
+  membershipTier: text("membership_tier", { 
+    enum: ["basic", "premium", "expert"] 
+  }).default("basic").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

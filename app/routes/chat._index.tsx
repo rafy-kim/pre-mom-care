@@ -71,7 +71,16 @@ export const action = async (args: ActionFunctionArgs) => {
       new URL("/api/gemini", args.request.url),
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          // Clerk 인증 정보만 선택적으로 전달
+          ...(args.request.headers.get("authorization") && {
+            "authorization": args.request.headers.get("authorization")!
+          }),
+          ...(args.request.headers.get("cookie") && {
+            "cookie": args.request.headers.get("cookie")!
+          })
+        },
         body: JSON.stringify({ message: userMessageContent }),
       }
     );
