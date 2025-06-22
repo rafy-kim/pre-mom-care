@@ -20,7 +20,10 @@ const SYSTEM_PROMPT = `
     *   Context의 내용을 기반으로 답변하되, 이를 당신의 지식인 것처럼 자연스럽게 녹여내어 설명해야 합니다. 예를 들어, 사용자가 '영양제'에 대해 물었지만 Context에 '아연이 풍부한 음식' 정보가 있다면, "영양제도 중요하지만, 혹시 아연 섭취에 관심이 있다면 이런 음식들은 어떠세요?" 와 같이 부드럽게 대화를 이끌어 가세요.
 
 2.  **정확한 출처 제공:**
-    *   'sources' 배열에는 답변을 구성하는 데 실제로 사용한 Context의 출처만 정직하게 포함시켜 주세요. 이는 당신의 답변에 신뢰를 더해줄 것입니다.
+    *   'sources' 배열에는 답변을 구성하는 데 실제로 사용한 Context의 출처만 정직하게 포함시켜 주세요. 
+    *   Context에서 '[출처: 제목 (페이지)]' 형태의 도서 정보가 있으면 'refType': 'book', 'reference': '제목', 'page': '페이지번호'로 설정하세요.
+    *   Context에서 '[YouTube영상출처: 영상제목 (시간) - URL: url - VideoID: id]' 형태의 YouTube 정보가 있으면 'refType': 'youtube', 'videoTitle': '영상제목', 'videoUrl': 'url값', 'timestamp': 초단위숫자로변환, 'reference': '영상제목'로 설정하세요.
+    *   이는 당신의 답변에 신뢰를 더해줄 것입니다.
 
 3.  **안전 최우선 및 한계 명시:**
     *   답변 마지막에는 항상 "제가 드린 정보는 의학적 조언이 아니니, 꼭 전문의와 상담하여 정확한 정보를 확인하시는 것 잊지 마세요!" 와 같이 당신의 역할의 한계를 명확히 하고, 전문가 상담을 권유하는 문구를 부드럽게 추가해주세요.
@@ -35,7 +38,11 @@ const SYSTEM_PROMPT = `
   "sources": [
     {
       "reference": "사용한 출처의 제목",
-      "page": "사용한 출처의 페이지 번호 또는 페이지 범위 (예: 38-40)"
+      "page": "사용한 출처의 페이지 번호 또는 페이지 범위 (예: 38-40)",
+      "refType": "출처 타입 (book, youtube, paper)",
+      "videoTitle": "YouTube 영상의 경우 영상 제목",
+      "videoUrl": "YouTube 영상의 경우 영상 URL",
+      "timestamp": "YouTube 영상의 경우 타임스탬프(초 단위)"
     }
   ]
 }
@@ -44,6 +51,7 @@ const SYSTEM_PROMPT = `
 /**
  * Groups documents by reference and formats them into a context string.
  * Consecutive pages from the same reference are grouped into a range.
+ * For YouTube videos, includes video title and timestamp information.
  * @param documents - The array of documents from the database.
  * @returns A formatted context string.
  */
@@ -52,46 +60,73 @@ function groupAndFormatContext(documents: any[]): string {
     return 'No specific context found.';
   }
 
-  // 1. Group documents by reference
+  console.log('Processing documents in groupAndFormatContext:', documents.map(d => ({ 
+    ref_type: d.ref_type, 
+    reference: d.reference, 
+    title: d.title,
+    metadata: d.metadata 
+  })));
+
+  // 1. Group documents by reference and refType
   const groupedByReference: { [key: string]: any[] } = documents.reduce((acc, doc) => {
-    const ref = doc.reference;
-    if (!acc[ref]) {
-      acc[ref] = [];
+    const key = `${doc.reference}|${doc.ref_type}`;
+    if (!acc[key]) {
+      acc[key] = [];
     }
-    acc[ref].push(doc);
+    acc[key].push(doc);
     return acc;
   }, {});
 
   const formattedContexts: string[] = [];
 
   // 2. Process each group
-  for (const ref in groupedByReference) {
-    const group = groupedByReference[ref];
-    // Sort by page number
-    group.sort((a, b) => a.metadata.page - b.metadata.page);
+  for (const key in groupedByReference) {
+    const [ref, refType] = key.split('|');
+    const group = groupedByReference[key];
 
-    let currentRange = [group[0]];
-    const contentParts: string[] = [];
+    if (refType === 'book') {
+      // Handle books - group consecutive pages
+      group.sort((a, b) => (a.metadata?.page || 0) - (b.metadata?.page || 0));
 
-    for (let i = 1; i < group.length; i++) {
-      // Check if the page is consecutive
-      if (group[i].metadata.page === group[i - 1].metadata.page + 1) {
-        currentRange.push(group[i]);
-      } else {
-        // End of a consecutive range, format and push
-        const pages = currentRange.map(doc => doc.metadata.page);
-        const pageStr = pages.length > 1 ? `${pages[0]}-${pages[pages.length - 1]}` : `${pages[0]}`;
-        const combinedContent = currentRange.map(doc => doc.content).join('\n');
-        formattedContexts.push(`[출처: ${ref} (${pageStr}페이지)] ${combinedContent}`);
-        currentRange = [group[i]];
+      let currentRange = [group[0]];
+
+      for (let i = 1; i < group.length; i++) {
+        // Check if the page is consecutive
+        if (group[i].metadata?.page === group[i - 1].metadata?.page + 1) {
+          currentRange.push(group[i]);
+        } else {
+          // End of a consecutive range, format and push
+          const pages = currentRange.map(doc => doc.metadata?.page).filter(Boolean);
+          const pageStr = pages.length > 1 ? `${pages[0]}-${pages[pages.length - 1]}` : `${pages[0]}`;
+          const combinedContent = currentRange.map(doc => doc.content).join('\n');
+          formattedContexts.push(`[출처: ${ref} (${pageStr}페이지)] ${combinedContent}`);
+          currentRange = [group[i]];
+        }
       }
+      
+      // Push the last range
+      const pages = currentRange.map(doc => doc.metadata?.page).filter(Boolean);
+      const pageStr = pages.length > 1 ? `${pages[0]}-${pages[pages.length - 1]}` : `${pages[0]}`;
+      const combinedContent = currentRange.map(doc => doc.content).join('\n');
+      formattedContexts.push(`[출처: ${ref} (${pageStr}페이지)] ${combinedContent}`);
+    } else if (refType === 'youtube') {
+      // Handle YouTube videos - format with timestamp
+      group.forEach(doc => {
+        const seconds = doc.metadata?.seconds || 0;
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        const timestamp = `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+        const url = doc.metadata?.url || '';
+        const videoId = doc.metadata?.videoId || '';
+        
+        formattedContexts.push(`[YouTube영상출처: ${doc.title} (${timestamp}) - URL: ${url} - VideoID: ${videoId}] ${doc.content}`);
+      });
+    } else {
+      // Handle other types (papers, etc.)
+      group.forEach(doc => {
+        formattedContexts.push(`[출처: ${ref}] ${doc.content}`);
+      });
     }
-    
-    // Push the last range
-    const pages = currentRange.map(doc => doc.metadata.page);
-    const pageStr = pages.length > 1 ? `${pages[0]}-${pages[pages.length - 1]}` : `${pages[0]}`;
-    const combinedContent = currentRange.map(doc => doc.content).join('\n');
-    formattedContexts.push(`[출처: ${ref} (${pageStr}페이지)] ${combinedContent}`);
   }
 
   return formattedContexts.join('\n\n');
@@ -131,6 +166,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       [embeddingString, 0.7, 10] // query_embedding, match_threshold, match_count (5 -> 10)
     );
 
+    console.log('Database documents:', JSON.stringify(documents, null, 2));
     const context = groupAndFormatContext(documents);
     
     // Format history for Gemini

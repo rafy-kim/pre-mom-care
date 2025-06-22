@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Card, CardContent, CardFooter } from "~/components/ui/card";
 import { cn } from "~/lib/utils";
-import { Bot, BookOpen, Bookmark } from "lucide-react";
+import { Bot, BookOpen, Bookmark, Play } from "lucide-react";
 import { IMessage, ISource } from "types";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -84,17 +84,56 @@ export function ChatMessage({
             <CardFooter className="mt-2 border-t p-4 pt-0">
               <div>
                 <h4 className="mb-2 text-xs font-semibold">참고 자료</h4>
-                <ul className="space-y-1">
+                <ul className="space-y-2">
                   {sources.map((source: ISource, index: number) => (
                     <li
                       key={index}
-                      className="flex items-center gap-2 text-xs text-muted-foreground"
+                      className="flex items-start gap-2 text-xs text-muted-foreground"
                     >
-                      <BookOpen className="h-4 w-4 flex-shrink-0" />
-                      <span>
-                        {source.reference}
-                        {source.page ? ` (p.${source.page})` : ''}
-                      </span>
+                      {source.refType === 'youtube' ? (
+                        <Play className="h-4 w-4 flex-shrink-0 mt-0.5 text-red-500" />
+                      ) : (
+                        <BookOpen className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1">
+                        {source.refType === 'youtube' ? (
+                          <>
+                            {source.videoUrl ? (
+                              <a
+                                href={source.videoUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:text-blue-600 hover:underline transition-colors"
+                              >
+                                <div className="font-medium text-gray-700">
+                                  {source.videoTitle || source.reference}
+                                </div>
+                                {source.timestamp !== undefined && (
+                                  <div className="text-xs text-gray-500 mt-0.5">
+                                    {Math.floor(source.timestamp / 60)}:{(source.timestamp % 60).toString().padStart(2, '0')}
+                                  </div>
+                                )}
+                              </a>
+                            ) : (
+                              <>
+                                <div className="font-medium text-gray-700">
+                                  {source.videoTitle || source.reference}
+                                </div>
+                                {source.timestamp !== undefined && (
+                                  <div className="text-xs text-gray-500 mt-0.5">
+                                    {Math.floor(source.timestamp / 60)}:{(source.timestamp % 60).toString().padStart(2, '0')}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <span>
+                            {source.reference}
+                            {source.page ? ` (p.${source.page})` : ''}
+                          </span>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
