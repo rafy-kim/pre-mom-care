@@ -1,5 +1,22 @@
-import { pgTable, text, timestamp, varchar, jsonb } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  timestamp,
+  varchar,
+  jsonb,
+  serial,
+  customType,
+} from 'drizzle-orm/pg-core'
 import { relations } from "drizzle-orm";
+
+const vector = customType<{ data: number[] }>({
+  dataType() {
+    return 'vector(3072)' // Dimension from existing DB schema
+  },
+  toDriver(value: number[]): string {
+    return `[${value.join(',')}]`
+  },
+})
 
 export const userProfiles = pgTable("user_profiles", {
   id: text("id").primaryKey(), // Clerk User ID
@@ -54,6 +71,16 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
   }),
   bookmarks: many(bookmarks),
 }));
+
+export const documents = pgTable('documents', {
+  id: serial('id').primaryKey(),
+  refType: text('ref_type', { enum: ['book', 'youtube', 'paper'] }).notNull(),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  reference: text('reference').notNull(), // Book title or YouTube channel name
+  metadata: jsonb('metadata'), // { page: number } or { videoId: string, url:string, seconds: number }
+  embedding: vector('embedding'),
+})
 
 export const bookmarks = pgTable("bookmarks", {
   id: varchar("id", { length: 256 }).primaryKey(),
