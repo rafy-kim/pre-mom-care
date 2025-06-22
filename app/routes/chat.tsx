@@ -7,12 +7,13 @@ import { LoginBanner } from "~/components/auth/LoginBanner";
 import { IMessage } from "types";
 import { Bot } from "lucide-react";
 import { type LoaderFunctionArgs, json, redirect } from "@remix-run/node";
-import { Form, Link, Outlet, useFetcher, useLoaderData, useParams } from "@remix-run/react";
+import { Form, Link, Outlet, useFetcher, useLoaderData, useParams, useLocation } from "@remix-run/react";
 import { getAuth } from "@clerk/remix/ssr.server";
 import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/remix";
-import { db, userProfiles, chats } from "~/db";
+import { db, userProfiles, chats, bookmarks } from "~/db";
 import { eq, desc } from "drizzle-orm";
 import { cn } from "~/lib/utils";
+import { format } from "date-fns";
 import { ChatInput } from "~/components/chat/ChatInput";
 import { ChatMessage } from "~/components/chat/ChatMessage";
 import { TypingIndicator } from "~/components/chat/TypingIndicator";
@@ -39,7 +40,7 @@ export const loader = async (args: LoaderFunctionArgs) => {
 
   if (!userId) {
     // Guest user, return with no user-specific data
-    return json({ userProfile: null, chatList: [] });
+    return json({ userProfile: null, chatList: [], bookmarks: [] });
   }
 
   // Logged-in user
@@ -56,7 +57,21 @@ export const loader = async (args: LoaderFunctionArgs) => {
     orderBy: [desc(chats.createdAt)],
   });
 
-  return json({ userProfile, chatList });
+  const userBookmarks = await db.query.bookmarks.findMany({
+    where: eq(bookmarks.userId, userId),
+    with: {
+      message: {
+        columns: {
+          id: true,
+          chatId: true,
+          content: true,
+        },
+      },
+    },
+    orderBy: [desc(bookmarks.createdAt)],
+  });
+
+  return json({ userProfile, chatList, bookmarks: userBookmarks });
 };
 
 const MOCK_MESSAGES: IMessage[] = [
@@ -70,14 +85,28 @@ const MOCK_MESSAGES: IMessage[] = [
   },
 ];
 
+function getMessagePreview(content: any): string {
+  if (typeof content === 'string') {
+    return content.substring(0, 80)
+  }
+  if (typeof content === 'object' && content !== null && 'answer' in content) {
+    return (content.answer as string).substring(0, 80)
+  }
+  return '내용을 표시할 수 없습니다.'
+}
+
 
 export default function ChatPage() {
-  const { userProfile, chatList } = useLoaderData<typeof loader>();
+  const { userProfile, chatList, bookmarks: userBookmarks } = useLoaderData<typeof loader>();
   const params = useParams();
+  const location = useLocation();
   const fetcher = useFetcher();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  // 현재 선택된 메시지 ID 추출
+  const selectedMessageId = location.hash.replace('#', '');
 
   // --- Guest Mode Logic ---
   const [messages, setMessages] = useState<IMessage[]>(MOCK_MESSAGES);
@@ -159,7 +188,7 @@ export default function ChatPage() {
             <Tabs defaultValue="chat" className="flex flex-col flex-1 h-full overflow-y-hidden">
               <div className="relative flex-shrink-0 p-4 border-b">
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="chat">채팅</TabsTrigger>
+                  <TabsTrigger value="chat">대화</TabsTrigger>
                   <TabsTrigger value="bookmark">북마크</TabsTrigger>
                 </TabsList>
                 <Button variant="ghost" size="icon" className="absolute top-2.5 right-2 md:hidden" onClick={() => setIsSidebarOpen(false)}>
@@ -167,9 +196,9 @@ export default function ChatPage() {
                 </Button>
               </div>
 
-              <div className="flex-1 overflow-y-auto">
-                <TabsContent value="chat" className="flex flex-col h-full m-0">
-                  <div className="p-4">
+              <div className="flex-1 min-h-0">
+                <TabsContent value="chat" className="flex flex-col h-full m-0 data-[state=active]:flex data-[state=inactive]:hidden">
+                  <div className="flex-shrink-0 p-4">
                     <Link to="/chat" className="w-full">
                       <Button className="w-full">
                         <MessageSquarePlus className="w-4 h-4 mr-2"/>
@@ -177,7 +206,7 @@ export default function ChatPage() {
                       </Button>
                     </Link>
                   </div>
-                  <nav className="flex-1 p-2 space-y-1 overflow-y-auto border-t">
+                  <nav className="flex-1 p-2 space-y-1 overflow-y-auto border-t min-h-0">
                     {chatList.map((chat) => (
                       <div
                         key={chat.id}
@@ -211,10 +240,55 @@ export default function ChatPage() {
                     ))}
                   </nav>
                 </TabsContent>
-                <TabsContent value="bookmark" className="p-4 m-0">
-                   <div className="text-center text-sm text-gray-500">
-                      북마크한 대화가 여기에 표시됩니다.
+                <TabsContent value="bookmark" className="flex flex-col h-full m-0 data-[state=active]:flex data-[state=inactive]:hidden">
+                  <div className="flex-shrink-0 p-4">
+                    <div className="text-sm text-gray-500 font-medium">
+                      북마크한 답변
                     </div>
+                  </div>
+                  <nav className="flex-1 p-2 space-y-2 overflow-y-auto border-t min-h-0">
+                    {userBookmarks?.length > 0 ? (
+                      userBookmarks.map(bookmark => {
+                        const isSelected = selectedMessageId === bookmark.message.id;
+                        return (
+                          <Link
+                            key={bookmark.id}
+                            to={`/chat/${bookmark.message.chatId}#${bookmark.message.id}`}
+                            className={cn(
+                              "block rounded-lg p-3 group transition-all duration-200 border",
+                              isSelected 
+                                ? "bg-blue-50 border-blue-200 shadow-sm" 
+                                : "hover:bg-gray-50 border-gray-100 hover:border-gray-200 hover:shadow-sm"
+                            )}
+                            onClick={() => setIsSidebarOpen(false)}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-xs text-muted-foreground font-medium">
+                                {format(new Date(bookmark.createdAt), 'MM월 dd일')}
+                              </div>
+                              <div className={cn(
+                                "flex items-center text-xs transition-opacity",
+                                isSelected ? "opacity-100 text-blue-600" : "opacity-0 group-hover:opacity-100 text-blue-500"
+                              )}>
+                                <Bookmark className="h-3 w-3 mr-1 fill-current" />
+                                <span>저장됨</span>
+                              </div>
+                            </div>
+                            <div className="text-sm leading-relaxed text-gray-700 line-clamp-3">
+                              {getMessagePreview(bookmark.message.content)}
+                              {getMessagePreview(bookmark.message.content).length >= 80 && '...'}
+                            </div>
+                          </Link>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center text-gray-500 p-6 rounded-lg bg-gray-50">
+                        <Bookmark className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                        <p className="text-sm font-medium mb-1">북마크한 답변이 없어요</p>
+                        <p className="text-xs">채팅에서 유용한 답변을 북마크해보세요</p>
+                      </div>
+                    )}
+                  </nav>
                 </TabsContent>
               </div>
             </Tabs>

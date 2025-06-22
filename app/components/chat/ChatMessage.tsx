@@ -67,14 +67,14 @@ export function ChatMessage({
           </AvatarFallback>
         </Avatar>
       )}
-      <div className={cn('relative', !isUser && 'flex-1')}>
+      <div className={cn(!isUser && 'flex-1')}>
         <Card
           className={cn(
-            "max-w-2xl",
+            "max-w-2xl relative",
             isUser
               ? "bg-primary text-primary-foreground"
               : "bg-muted",
-            !isUser && "pr-12" // Add padding for the bookmark button
+            !isUser && "pr-10" // Add padding for the bookmark button
           )}
         >
           <CardContent className="p-4">
@@ -101,29 +101,34 @@ export function ChatMessage({
               </div>
             </CardFooter>
           )}
-        </Card>
-        {!isUser && (
-          <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
-            <fetcher.Form method="post" action="/api/bookmark">
-              <input type="hidden" name="messageId" value={id} />
-              <Button
-                type="submit"
-                name="intent"
-                value={isCurrentlyBookmarked ? 'unbookmark' : 'bookmark'}
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-              >
-                <Bookmark
+          {!isUser && (
+            <div className="absolute right-2 top-2">
+              <fetcher.Form method="post" action="/api/bookmark">
+                <input type="hidden" name="messageId" value={id} />
+                <Button
+                  type="submit"
+                  name="intent"
+                  value={isCurrentlyBookmarked ? 'unbookmark' : 'bookmark'}
+                  variant="ghost"
+                  size="icon"
                   className={cn(
-                    'h-4 w-4',
-                    isCurrentlyBookmarked && 'fill-yellow-400 text-yellow-500',
+                    "h-7 w-7 rounded-full transition-all duration-200",
+                    isCurrentlyBookmarked 
+                      ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-600" 
+                      : "bg-white/80 hover:bg-white text-gray-400 hover:text-gray-600 shadow-sm"
                   )}
-                />
-              </Button>
-            </fetcher.Form>
-          </div>
-        )}
+                >
+                  <Bookmark
+                    className={cn(
+                      'h-3.5 w-3.5 transition-colors',
+                      isCurrentlyBookmarked ? 'fill-current' : '',
+                    )}
+                  />
+                </Button>
+              </fetcher.Form>
+            </div>
+          )}
+        </Card>
       </div>
     </div>
   );

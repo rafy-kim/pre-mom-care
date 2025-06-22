@@ -7,7 +7,7 @@ import {
   json,
   redirect,
 } from "@remix-run/node";
-import { useFetcher, useLoaderData } from "@remix-run/react";
+import { useFetcher, useLoaderData, useLocation } from "@remix-run/react";
 import { getAuth } from "@clerk/remix/ssr.server";
 import { nanoid } from "nanoid";
 import { and, eq, desc, asc, isNotNull, sql } from "drizzle-orm";
@@ -172,6 +172,7 @@ export default function ChatIdPage() {
   const { messages: initialMessages, chatId } = useLoaderData<typeof loader>();
   const [messages, setMessages] = useState<IMessage[]>(initialMessages as IMessage[]);
   const fetcher = useFetcher<typeof action>();
+  const location = useLocation();
   const isLoading = fetcher.state !== "idle";
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -200,21 +201,26 @@ export default function ChatIdPage() {
 
   useEffect(() => {
     // Scroll to highlighted message from bookmark
-    const hash = window.location.hash;
+    const hash = location.hash;
     if (hash) {
-      const element = document.getElementById(hash.substring(1));
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        element.classList.add('bg-yellow-200/50', 'dark:bg-yellow-800/50');
-        setTimeout(() => {
-          element.classList.remove(
-            'bg-yellow-200/50',
-            'dark:bg-yellow-800/50',
-          );
-        }, 2000);
-      }
+      // Add a small delay to ensure DOM is updated
+      const timer = setTimeout(() => {
+        const element = document.getElementById(hash.substring(1));
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          element.classList.add('bg-yellow-200/50', 'dark:bg-yellow-800/50', 'transition-colors', 'duration-300');
+          setTimeout(() => {
+            element.classList.remove(
+              'bg-yellow-200/50',
+              'dark:bg-yellow-800/50',
+            );
+          }, 2000);
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
-  }, [chatId]); // Re-run when switching chats
+  }, [location.hash, location.key, messages]); // Re-run when hash changes or messages update
 
   // Add new message from fetcher optimistic UI
   useEffect(() => {
