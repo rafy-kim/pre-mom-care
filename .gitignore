@@ -27,3 +27,7 @@ data/youtube-videos-data.json
 
 # Add custom ignores below
 /public/ansimi.jpg
+
+# custom
+data/
+temp_audio/
