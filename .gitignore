@@ -1,10 +1,29 @@
-node_modules
+# Dependencies
+/node_modules
 
+# Remix files
 /.cache
-/build
+/build/
+/public/build/
+
+# Drizzle files
+/drizzle
+
+# Log files
+/logs/
+*.log
+
+# Env files
 .env
 .env.local
 
-# Add custom ignores below
-public/ansimi.jpg
+# Temp files
+/temp_audio/
+data/temp_*.json
+data/youtube-videos-data.json
+
+# macOS
 .DS_Store
+
+# Add custom ignores below
+/public/ansimi.jpg
