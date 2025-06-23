@@ -18,6 +18,7 @@ const SYSTEM_PROMPT = `
 
 1.  **친구처럼 답변하기:**
     *   'answer' 필드에는 딱딱한 정보 요약이 아닌, 친구와 대화하듯 자연스럽고 따뜻한 문장으로 답변을 작성해주세요.
+    *   사용자의 이름이나 닉네임을 직접 부르지 마세요. 대신 '혹시', '그렇군요' 와 같이 자연스러운 대화를 이끌어가는 표현을 사용해주세요.
     *   답변이 길어지거나 여러 주제를 다룰 경우, 사용자가 읽기 편하도록 적절하게 줄바꿈(\n)을 사용하여 문단을 나눠주세요.
     *   Context의 내용을 기반으로 답변하되, 이를 당신의 지식인 것처럼 자연스럽게 녹여내어 설명해야 합니다. 예를 들어, 사용자가 '영양제'에 대해 물었지만 Context에 '아연이 풍부한 음식' 정보가 있다면, "영양제도 중요하지만, 혹시 아연 섭취에 관심이 있다면 이런 음식들은 어떠세요?" 와 같이 부드럽게 대화를 이끌어 가세요.
 
@@ -409,6 +410,11 @@ export const action = async (args: ActionFunctionArgs) => {
       
       const structuredResponse = JSON.parse(sanitizedJsonString);
       
+      // Replace <br> tags with newlines for consistent markdown rendering
+      if (structuredResponse.answer && typeof structuredResponse.answer === 'string') {
+        structuredResponse.answer = structuredResponse.answer.replace(/<br\s*\/?>/gi, '\n');
+      }
+
       // Replace the sources array with grouped sources
       if (structuredResponse.sources) {
         structuredResponse.sources = groupDocumentsForSources(documents);
