@@ -252,24 +252,19 @@ function groupDocumentsForSources(documents: any[]): any[] {
  */
 async function getUserMembershipTier(userId: string): Promise<MembershipTier> {
   try {
-    console.log(`👤 [getUserMembershipTier] Querying tier for user: ${userId.substring(0, 12)}...`);
     const { rows } = await pool.query(
       'SELECT membership_tier FROM user_profiles WHERE id = $1',
       [userId]
     );
     
     if (rows.length === 0) {
-      console.log(`⚠️ [getUserMembershipTier] User not found, returning default tier: basic`);
-      // 사용자가 없으면 기본 등급 반환
       return 'basic';
     }
     
     const tier = rows[0].membership_tier as MembershipTier;
-    console.log(`✅ [getUserMembershipTier] Found user tier: ${tier}`);
     return tier;
   } catch (error) {
-    console.error('❌ [getUserMembershipTier] Error fetching user membership tier:', error);
-    // 에러 발생 시 기본 등급 반환
+    console.error('❌ [User Tier Error]', error);
     return 'basic';
   }
 }
@@ -277,37 +272,13 @@ async function getUserMembershipTier(userId: string): Promise<MembershipTier> {
 export const action = async (args: ActionFunctionArgs) => {
   const { request } = args;
   
-  console.log("🚀 [Gemini API] Request received");
-  
   if (request.method !== "POST") {
-    console.log("❌ [Gemini API] Method not allowed:", request.method);
     return json({ error: "Method not allowed" }, { status: 405 });
   }
 
   try {
-    // 사용자 인증 확인 (선택적)
-    console.log("🔐 [Gemini API] Checking user authentication...");
-    console.log("🔐 [Gemini API] Args received:", { 
-      hasRequest: !!args.request,
-      hasParams: !!args.params,
-      requestUrl: args.request?.url,
-      requestHeaders: Object.fromEntries([...args.request.headers.entries()].slice(0, 10)) // Authorization 헤더 확인을 위해 더 많이
-    });
-    
     const authResult = await getAuth(args);
-    console.log("🔐 [Gemini API] Auth result:", {
-      userId: authResult.userId ? `${authResult.userId.substring(0, 12)}...` : null,
-      sessionId: authResult.sessionId ? `${authResult.sessionId.substring(0, 12)}...` : null,
-      hasAuth: !!authResult.userId
-    });
-    
     const { userId } = authResult;
-    
-    if (userId) {
-      console.log(`✅ [Gemini API] User authenticated: ${userId.substring(0, 12)}...`);
-    } else {
-      console.log("🔓 [Gemini API] Guest user detected - using basic tier");
-    }
 
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
     
@@ -322,39 +293,28 @@ export const action = async (args: ActionFunctionArgs) => {
     // Model for embedding
     const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-exp-03-07' });
 
-    console.log("📨 [Gemini API] Parsing request body...");
     const { message, history } = await request.json();
 
     if (!message) {
-      console.log("❌ [Gemini API] Message is required");
       return json({ error: "Message is required" }, { status: 400 });
     }
     
-    console.log(`📝 [Gemini API] User message: "${message.substring(0, 50)}..."`);
+    console.log(`💬 [Query] "${message}"`);
 
     // 사용자 등급 조회 (로그인한 사용자만, 게스트는 기본 등급)
     let userTier: MembershipTier = 'basic';
     if (userId) {
-      console.log("👤 [Gemini API] Fetching user membership tier...");
       userTier = await getUserMembershipTier(userId);
-      console.log(`🎯 [Gemini API] User ${userId.substring(0, 12)}... has tier: ${userTier}`);
-    } else {
-      console.log("🔓 [Gemini API] Guest user - using basic tier");
     }
     
     const allowedRefTypes = TIER_PERMISSIONS[userTier].allowedRefTypes;
-    console.log(`📚 [Gemini API] Allowed ref types: ${allowedRefTypes.join(', ')}`);
 
     // 임베딩 생성
-    console.log("🧠 [Gemini API] Generating message embedding...");
     const { embedding } = await embeddingModel.embedContent(message);
     const embeddingString = `[${embedding.values.join(',')}]`;
-    console.log(`✅ [Gemini API] Embedding generated (dimension: ${embedding.values.length})`);
 
     // 등급별 필터링된 RAG 검색 쿼리
-    console.log("🔍 [Gemini API] Executing RAG search with tier filtering...");
     const refTypeFilter = allowedRefTypes.map(type => `'${type}'`).join(',');
-    console.log(`🔍 [Gemini API] Search query filter: ref_type IN (${refTypeFilter})`);
     
     const { rows: documents } = await pool.query(
       `SELECT * FROM match_documents($1, $2, $3) 
@@ -362,14 +322,38 @@ export const action = async (args: ActionFunctionArgs) => {
       [embeddingString, 0.7, 10] // query_embedding, match_threshold, match_count
     );
     
-    console.log(`📄 [Gemini API] Found ${documents.length} relevant documents`);
+    // 상세 검색 결과 로그
+    if (documents.length > 0) {
+      console.log(`\n📊 [Search Results] Found ${documents.length} documents:`);
+      documents.forEach((doc, index) => {
+        const similarity = (doc.similarity * 100).toFixed(2);
+        const refType = doc.ref_type || 'unknown';
+        const reference = doc.reference || 'unknown';
+        const title = doc.title ? doc.title.substring(0, 60) + '...' : 'No title';
+        const contentPreview = doc.content ? doc.content.substring(0, 100).replace(/\n/g, ' ') + '...' : 'No content';
 
-    console.log("📝 [Gemini API] Formatting context for AI...");
+        console.log(`  ${index + 1}. [${similarity}%] ${refType} | ${reference}`);
+        console.log(`     Title: ${title}`);
+        console.log(`     Content: ${contentPreview}`);
+        
+        // 메타데이터 정보 추가
+        if (doc.metadata) {
+          const metadata = typeof doc.metadata === 'string' ? JSON.parse(doc.metadata) : doc.metadata;
+          if (refType === 'youtube' && metadata.videoId) {
+            console.log(`     VideoID: ${metadata.videoId} | Timestamp: ${metadata.seconds}s`);
+          } else if (refType === 'book' && metadata.page) {
+            console.log(`     Page: ${metadata.page}`);
+          }
+        }
+        console.log('');
+      });
+    } else {
+      console.log("⚠️ [Search Results] No documents found above similarity threshold");
+    }
+
     const context = groupAndFormatContext(documents);
-    console.log(`📝 [Gemini API] Context length: ${context.length} characters`);
     
     // Format history for Gemini
-    console.log("📚 [Gemini API] Processing chat history...");
     const geminiHistory = (history || [])
       .filter((msg: any) => msg.role === 'user' || msg.role === 'assistant')
       .map((msg: any) => ({
@@ -385,8 +369,6 @@ export const action = async (args: ActionFunctionArgs) => {
 
     // Remove the last message from history as it's the current user question
     geminiHistory.pop();
-    
-    console.log(`📚 [Gemini API] Chat history processed: ${geminiHistory.length} messages`);
 
     const augmentedPrompt = `
       Context:
@@ -396,7 +378,6 @@ export const action = async (args: ActionFunctionArgs) => {
       ${message}
     `;
 
-    console.log("🤖 [Gemini API] Sending request to Gemini AI...");
     const chat = chatModel.startChat({
       history: geminiHistory,
     });
@@ -405,11 +386,7 @@ export const action = async (args: ActionFunctionArgs) => {
     const response = await result.response;
     const text = response.text();
     
-    console.log("🤖 [Gemini API] Received response from AI");
-    console.log(`🤖 [Gemini API] Raw response length: ${text.length} characters`);
-    
     try {
-      console.log("🔧 [Gemini API] Parsing AI response as JSON...");
       // Clean the response text by removing markdown and extra characters
       const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
       
@@ -418,7 +395,7 @@ export const action = async (args: ActionFunctionArgs) => {
       const lastBrace = cleanedText.lastIndexOf('}');
 
       if (firstBrace === -1 || lastBrace < firstBrace) {
-        console.log("❌ [Gemini API] No JSON object found in response");
+        console.log("❌ [Parse Error] No JSON object found in response");
         console.log("Raw response:", text.substring(0, 500) + "...");
         throw new Error("No JSON object found in the response.");
       }
@@ -431,29 +408,24 @@ export const action = async (args: ActionFunctionArgs) => {
       });
       
       const structuredResponse = JSON.parse(sanitizedJsonString);
-      console.log("✅ [Gemini API] Successfully parsed AI response");
       
       // Replace the sources array with grouped sources
       if (structuredResponse.sources) {
         structuredResponse.sources = groupDocumentsForSources(documents);
-        console.log(`📚 [Gemini API] Added ${structuredResponse.sources.length} grouped sources`);
       }
       
-      console.log("🎉 [Gemini API] Request completed successfully");
       return json({ reply: structuredResponse });
     } catch (parseError) {
-      console.error("❌ [Gemini API] Failed to parse JSON response:", parseError);
+      console.error("❌ [Parse Error] Failed to parse JSON response:", parseError);
       console.error("Raw AI response:", text);
       // Re-throw the error to be caught by the outer catch block
       throw parseError;
     }
 
   } catch (error) {
-    console.error("💥 [Gemini API] Error occurred:", error);
-    console.error("💥 [Gemini API] Error stack:", error instanceof Error ? error.stack : 'No stack trace available');
+    console.error("💥 [Error]", error);
     
     if (error instanceof SyntaxError) {
-      console.error("💥 [Gemini API] JSON parsing error detected");
       return json({ error: "Failed to parse AI response as JSON." }, { status: 500 });
     }
     
