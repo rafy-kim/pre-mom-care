@@ -178,11 +178,18 @@ export default function ChatPage() {
 
   // --- Logged-In Mode Render ---
   if (userProfile) {
-    let greeting = `${userProfile.baby_nickname}를 만나기까지`;
     const dueDate = new Date(userProfile.dueDate);
     const today = new Date();
     const dDay = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    let dDayText = dDay > 0 ? `D - ${dDay}` : dDay === 0 ? "D-Day" : `D + ${-dDay}`;
+    
+    // 임신 주차 계산 (전체 280일 기준)
+    const totalPregnancyDays = 280;
+    const elapsedDays = totalPregnancyDays - dDay;
+    const weeks = Math.floor(elapsedDays / 7);
+    const days = elapsedDays % 7;
+    const greeting = `${weeks}주 + ${days}일`;
+    
+    let dDayText = dDay > 0 ? `D - ${dDay}` : dDay === 0 ? "D - Day" : `D + ${-dDay}`;
     
     return (
       <>
@@ -346,7 +353,7 @@ export default function ChatPage() {
                 <div className="flex items-center gap-2">
                   <div className="text-right">
                     <p className="text-xs text-muted-foreground">{greeting}</p>
-                    <h1 className="text-sm font-bold">{dDayText}</h1>
+                    <h1 className="text-sm font-medium">{dDayText}</h1>
                   </div>
                 </div>
               </div>
