@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Card, CardContent, CardFooter } from "~/components/ui/card";
 import { cn } from "~/lib/utils";
-import { Bot, BookOpen, Bookmark, Play, Clock } from "lucide-react";
+import { Bot, BookOpen, Bookmark, Play, Clock, Share } from "lucide-react";
 import { IMessage, ISource } from "types";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -10,6 +10,7 @@ import { Button } from '../ui/button';
 
 interface ChatMessageProps extends IMessage {
   isBookmarked?: boolean;
+  disableActions?: boolean; // 북마크/공유 버튼 비활성화 여부
 }
 
 export function ChatMessage({
@@ -17,6 +18,7 @@ export function ChatMessage({
   role,
   content,
   isBookmarked,
+  disableActions = false,
 }: ChatMessageProps) {
   const isUser = role === "user";
   const fetcher = useFetcher();
@@ -25,6 +27,35 @@ export function ChatMessage({
   const isCurrentlyBookmarked = fetcher.formData
     ? fetcher.formData.get('intent') === 'bookmark'
     : isBookmarked;
+
+  // 안심이의 첫 인사말인지 확인
+  const textContent = typeof content === 'string' ? content : content.answer;
+  const isGreetingMessage = !isUser && textContent === "안녕하세요! 저는 '안심이'에요. 무엇이든 물어보세요.";
+
+  const handleShare = async () => {
+    // 메시지 상세 페이지 URL 생성
+    const shareUrl = `${window.location.origin}/share/message/${id}`;
+    
+    const shareData = {
+      // title: '예비맘, 안심 톡 - AI 답변',
+      // text: textContent,
+      url: shareUrl,
+    };
+
+    try {
+      if (navigator.share) {
+        // 모바일 기기의 웹 공유 API 사용
+        await navigator.share(shareData);
+      } else {
+        // 웹 공유 API가 지원되지 않는 경우 클립보드에 URL 복사
+        await navigator.clipboard.writeText(shareUrl);
+        // 간단한 알림 표시 (추후 toast 라이브러리 사용 가능)
+        alert('답변 링크가 클립보드에 복사되었습니다.');
+      }
+    } catch (error) {
+      console.error('공유 실패:', error);
+    }
+  };
 
   const renderContent = () => {
     const textContent = typeof content === 'string' ? content : content.answer;
@@ -136,7 +167,7 @@ export function ChatMessage({
             isUser
               ? "bg-primary text-primary-foreground"
               : "bg-muted",
-            !isUser && "pr-10" // Add padding for the bookmark button
+            !isUser && !isGreetingMessage && !disableActions && "pr-10" // Add padding for the bookmark button only when needed
           )}
         >
           <CardContent className="p-4">
@@ -167,8 +198,9 @@ export function ChatMessage({
               </div>
             </CardFooter>
           )}
-          {!isUser && (
-            <div className="absolute right-2 top-2">
+          {!isUser && !isGreetingMessage && !disableActions && (
+            <div className="absolute right-2 top-2 flex flex-col gap-1">
+              {/* 북마크 버튼 */}
               <fetcher.Form method="post" action="/api/bookmark">
                 <input type="hidden" name="messageId" value={id} />
                 <Button
@@ -192,6 +224,17 @@ export function ChatMessage({
                   />
                 </Button>
               </fetcher.Form>
+              
+              {/* 공유하기 버튼 */}
+              <Button
+                onClick={handleShare}
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-full transition-all duration-200 bg-white/80 hover:bg-white text-gray-400 hover:text-gray-600 shadow-sm"
+                title="답변 공유하기"
+              >
+                <Share className="h-3.5 w-3.5 transition-colors" />
+              </Button>
             </div>
           )}
         </Card>

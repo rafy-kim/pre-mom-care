@@ -19,6 +19,14 @@ export const links: LinksFunction = () => [
     href: "/ansimi.png?v=1",
   },
   {
+    rel: "apple-touch-icon",
+    href: "/apple-touch-icon.png",
+  },
+  {
+    rel: "apple-touch-icon-precomposed",
+    href: "/apple-touch-icon-precomposed.png",
+  },
+  {
     rel: "stylesheet",
     href: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css",
   },
