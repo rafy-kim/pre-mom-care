@@ -362,7 +362,7 @@ export default function ChatPage() {
                 <div className="flex items-center gap-2">
                   <button 
                     onClick={() => setIsOnboardingEditOpen(true)}
-                    className="text-right hover:bg-gray-100 p-2 rounded-md transition-colors cursor-pointer"
+                    className="text-right hover:bg-gray-100 p-0 rounded-md transition-colors cursor-pointer"
                   >
                     <p className="text-xs text-muted-foreground">{greeting}</p>
                     <h1 className="text-sm font-medium">{dDayText}</h1>
