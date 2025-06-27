@@ -149,20 +149,22 @@ export default function ChatIndexPage() {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 w-full max-w-4xl px-4 pt-4 mx-auto space-y-4 overflow-y-auto no-scrollbar">
+    <div className="flex flex-col h-full mobile-container">
+      <div className="flex-1 w-full max-w-4xl px-2 sm:px-4 pt-4 mx-auto space-y-4 overflow-y-auto no-scrollbar overscroll-contain">
         {messages.map((msg) => (
-          <ChatMessage key={msg.id} {...msg} />
+          <div key={msg.id} className="w-full min-w-0">
+            <ChatMessage {...msg} />
+          </div>
         ))}
         {isLoading && (
-          <div className="flex items-start gap-3 justify-start">
-            <Avatar>
+          <div className="flex items-start gap-2 sm:gap-3 justify-start w-full min-w-0">
+            <Avatar className="flex-shrink-0">
               <AvatarImage src="/ansimi.png" alt="안심이 마스코트" />
               <AvatarFallback>
                 <Bot className="h-6 w-6" />
               </AvatarFallback>
             </Avatar>
-            <div className="bg-muted rounded-lg p-3">
+            <div className="bg-muted rounded-lg p-3 min-w-0">
               <TypingIndicator />
             </div>
           </div>
@@ -170,7 +172,7 @@ export default function ChatIndexPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      <footer className="bg-white border-t">
+      <footer className="bg-white border-t pb-safe">
         <div className="w-full max-w-4xl p-4 mx-auto">
           <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
         </div>

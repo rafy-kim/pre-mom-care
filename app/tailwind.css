@@ -2,6 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  /* 모바일 터치 최적화 */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* iOS Safari 확대/축소 방지 */
+  input[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+  }
+  
+  /* 스크롤 영역 최적화 */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* 터치 조작 최적화 */
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+}
+
+@layer utilities {
+  /* 텍스트 줄바꿈 최적화 */
+  .overflow-wrap-anywhere {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    hyphens: auto;
+  }
+  
+  /* 모바일 레이아웃 최적화 */
+  .mobile-container {
+    width: 100%;
+    min-width: 0;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+}
+
 html,
 body {
   @apply bg-white dark:bg-gray-950;

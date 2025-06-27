@@ -37,7 +37,7 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-start gap-2">
+    <form onSubmit={handleSubmit} className="flex items-start gap-2 w-full min-w-0">
       <Textarea
         ref={textareaRef}
         value={message}
@@ -47,12 +47,18 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
         disabled={isLoading}
         className={cn(
           "flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-          "resize-none"
+          "resize-none min-w-0 touch-manipulation",
+          "text-base sm:text-sm" // 모바일에서 폰트 크기를 키워 줌 확대 방지
         )}
         minRows={1}
         maxRows={5}
       />
-      <Button type="submit" size="icon" disabled={isLoading || !message.trim()}>
+      <Button 
+        type="submit" 
+        size="icon" 
+        disabled={isLoading || !message.trim()}
+        className="flex-shrink-0 touch-manipulation"
+      >
         <SendHorizonal className="h-4 w-4" />
       </Button>
     </form>

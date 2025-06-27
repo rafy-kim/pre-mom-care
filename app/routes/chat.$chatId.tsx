@@ -217,13 +217,27 @@ export default function ChatIdPage() {
         const element = document.getElementById(hash.substring(1));
         if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          element.classList.add('bg-yellow-200/50', 'dark:bg-yellow-800/50', 'transition-colors', 'duration-300');
-          setTimeout(() => {
-            element.classList.remove(
-              'bg-yellow-200/50',
-              'dark:bg-yellow-800/50',
+          // 카드 요소를 찾아서 테두리 하이라이트 적용
+          const cardElement = element.querySelector('[class*="border"]') || element.querySelector('.bg-muted') || element;
+          if (cardElement) {
+            cardElement.classList.add(
+              'border-yellow-400', 
+              'border-2', 
+              'shadow-lg', 
+              'shadow-yellow-200/50',
+              'transition-all', 
+              'duration-500',
+              'ease-out'
             );
-          }, 2000);
+            setTimeout(() => {
+              cardElement.classList.remove(
+                'border-yellow-400',
+                'border-2',
+                'shadow-lg',
+                'shadow-yellow-200/50'
+              );
+            }, 3000);
+          }
         }
       }, 100);
       
@@ -255,24 +269,25 @@ export default function ChatIdPage() {
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="no-scrollbar w-full flex-1 space-y-4 overflow-y-auto px-4 pt-4 max-w-4xl mx-auto">
+    <div className="flex h-full flex-col mobile-container">
+      <div className="no-scrollbar w-full flex-1 space-y-4 overflow-y-auto px-2 sm:px-4 pt-4 max-w-4xl mx-auto overscroll-contain">
         {messages.map((msg) => (
-          <ChatMessage
-            key={msg.id}
-            {...(msg as IMessage)}
-            isBookmarked={(msg as any).isBookmarked}
-          />
+          <div key={msg.id} className="w-full min-w-0">
+            <ChatMessage
+              {...(msg as IMessage)}
+              isBookmarked={(msg as any).isBookmarked}
+            />
+          </div>
         ))}
         {isLoading && (
-          <div className="flex items-start justify-start gap-3">
-            <Avatar>
+          <div className="flex items-start justify-start gap-2 sm:gap-3 w-full min-w-0">
+            <Avatar className="flex-shrink-0">
               <AvatarImage src="/ansimi.png" alt="안심이 마스코트" />
               <AvatarFallback>
                 <Bot className="h-6 w-6" />
               </AvatarFallback>
             </Avatar>
-            <div className="bg-muted rounded-lg p-3">
+            <div className="bg-muted rounded-lg p-3 min-w-0">
               <TypingIndicator />
             </div>
           </div>
@@ -280,7 +295,7 @@ export default function ChatIdPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      <footer className="border-t bg-white">
+      <footer className="border-t bg-white pb-safe">
         <div className="w-full max-w-4xl p-4 mx-auto">
           <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
         </div>

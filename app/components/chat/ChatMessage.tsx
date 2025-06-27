@@ -62,7 +62,11 @@ export function ChatMessage({
     
     // For user messages, we still want to preserve line breaks but not apply markdown.
     if (isUser) {
-      return <div className="whitespace-pre-wrap">{textContent}</div>;
+      return (
+        <div className="whitespace-pre-wrap break-words overflow-wrap-anywhere">
+          {textContent}
+        </div>
+      );
     }
     
     // For AI messages, apply markdown rendering
@@ -71,7 +75,19 @@ export function ChatMessage({
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
-            p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+            p: ({ node, ...props }) => (
+              <p className="mb-2 last:mb-0 break-words overflow-wrap-anywhere" {...props} />
+            ),
+            // 긴 단어나 URL이 포함된 요소들에 대한 추가 처리
+            a: ({ node, ...props }) => (
+              <a className="break-all" {...props} />
+            ),
+            code: ({ node, ...props }) => (
+              <code className="break-all" {...props} />
+            ),
+            pre: ({ node, ...props }) => (
+              <pre className="overflow-x-auto text-sm" {...props} />
+            ),
           }}
         >
           {textContent}
@@ -98,9 +114,9 @@ export function ChatMessage({
       return (
         <div className="flex items-center flex-wrap gap-2">
           {/* 채널명: 영상 제목 */}
-          <span className="text-xs text-gray-900 flex items-center">
-            <span>{source.reference}:</span>
-            <span className="ml-1 truncate max-w-xs">
+          <span className="text-xs text-gray-900 flex items-center min-w-0">
+            <span className="flex-shrink-0">{source.reference}:</span>
+            <span className="ml-1 truncate min-w-0">
               {source.videoTitle || '영상 제목'}
             </span>
           </span>
@@ -135,7 +151,7 @@ export function ChatMessage({
     } else {
       // 도서 또는 논문: 책 제목 - 페이지
       return (
-        <span className="text-xs text-gray-900">
+        <span className="text-xs text-gray-900 break-words overflow-wrap-anywhere">
           {source.reference}{source.page ? ` - p.${source.page}` : ''}
         </span>
       );
@@ -147,30 +163,35 @@ export function ChatMessage({
   return (
     <div
       className={cn(
-        "group flex items-start gap-3",
+        "group flex items-start gap-2 sm:gap-3 w-full",
         isUser ? "justify-end" : "justify-start"
       )}
       id={id}
     >
       {!isUser && (
-        <Avatar>
+        <Avatar className="flex-shrink-0">
           <AvatarImage src="/ansimi.png" alt="안심이 마스코트" />
           <AvatarFallback>
             <Bot className="h-6 w-6" />
           </AvatarFallback>
         </Avatar>
       )}
-      <div className={cn(!isUser && 'flex-1')}>
+      <div className={cn(
+        "min-w-0", // 중요: flex 자식 요소가 축소될 수 있도록 함
+        !isUser && 'flex-1',
+        isUser && 'max-w-[85%] sm:max-w-2xl' // 사용자 메시지의 최대 폭 제한
+      )}>
         <Card
           className={cn(
-            "max-w-2xl relative",
+            "relative w-full", // max-w-2xl 제거하고 w-full 사용
+            "break-words overflow-hidden", // 긴 단어 자동 줄바꿈과 오버플로우 숨김
             isUser
               ? "bg-primary text-primary-foreground"
-              : "bg-muted",
-            !isUser && !isGreetingMessage && !disableActions && "pr-10" // Add padding for the bookmark button only when needed
+              : "bg-muted"
+            // pr-10 패딩 제거 - 더 이상 우측 상단 버튼 공간이 필요하지 않음
           )}
         >
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             {renderContent()}
           </CardContent>
           {!isUser && sources && sources.length > 0 && (
@@ -181,7 +202,7 @@ export function ChatMessage({
                   {sources.map((source: ISource, index: number) => (
                     <div
                       key={index}
-                      className="flex items-center gap-2 p-2 bg-white rounded border border-gray-100 hover:border-gray-200 transition-colors"
+                      className="flex items-center gap-2 p-2 bg-white rounded border border-gray-100 hover:border-gray-200 transition-colors min-w-0"
                     >
                       {/* 아이콘 */}
                       <div className="flex-shrink-0">
@@ -189,7 +210,7 @@ export function ChatMessage({
                       </div>
                       
                       {/* 콘텐츠 */}
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 overflow-hidden">
                         {renderSourceContent(source)}
                       </div>
                     </div>
@@ -199,42 +220,46 @@ export function ChatMessage({
             </CardFooter>
           )}
           {!isUser && !isGreetingMessage && !disableActions && (
-            <div className="absolute right-2 top-2 flex flex-col gap-1">
-              {/* 북마크 버튼 */}
-              <fetcher.Form method="post" action="/api/bookmark">
-                <input type="hidden" name="messageId" value={id} />
-                <Button
-                  type="submit"
-                  name="intent"
-                  value={isCurrentlyBookmarked ? 'unbookmark' : 'bookmark'}
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "h-7 w-7 rounded-full transition-all duration-200",
-                    isCurrentlyBookmarked 
-                      ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-600" 
-                      : "bg-white/80 hover:bg-white text-gray-400 hover:text-gray-600 shadow-sm"
-                  )}
-                >
-                  <Bookmark
+            <div className="border-t p-3 pt-2 bg-gray-50/20">
+              <div className="flex items-center justify-end gap-2">
+                {/* 북마크 버튼 */}
+                <fetcher.Form method="post" action="/api/bookmark" className="inline-block">
+                  <input type="hidden" name="messageId" value={id} />
+                  <Button
+                    type="submit"
+                    name="intent"
+                    value={isCurrentlyBookmarked ? 'unbookmark' : 'bookmark'}
+                    variant="ghost"
+                    size="sm"
                     className={cn(
-                      'h-3.5 w-3.5 transition-colors',
-                      isCurrentlyBookmarked ? 'fill-current' : '',
+                      "h-8 px-3 rounded-full transition-all duration-200 text-xs font-medium",
+                      isCurrentlyBookmarked 
+                        ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-700 border border-yellow-200" 
+                        : "bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-700 border border-gray-200 shadow-sm"
                     )}
-                  />
+                  >
+                    <Bookmark
+                      className={cn(
+                        'h-3 w-3 mr-1.5 transition-colors',
+                        isCurrentlyBookmarked ? 'fill-current' : '',
+                      )}
+                    />
+                    {isCurrentlyBookmarked ? '저장됨' : '저장'}
+                  </Button>
+                </fetcher.Form>
+                
+                {/* 공유하기 버튼 */}
+                <Button
+                  onClick={handleShare}
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-3 rounded-full transition-all duration-200 bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-700 border border-gray-200 shadow-sm text-xs font-medium"
+                  title="답변 공유하기"
+                >
+                  <Share className="h-3 w-3 mr-1.5 transition-colors" />
+                  공유
                 </Button>
-              </fetcher.Form>
-              
-              {/* 공유하기 버튼 */}
-              <Button
-                onClick={handleShare}
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-full transition-all duration-200 bg-white/80 hover:bg-white text-gray-400 hover:text-gray-600 shadow-sm"
-                title="답변 공유하기"
-              >
-                <Share className="h-3.5 w-3.5 transition-colors" />
-              </Button>
+              </div>
             </div>
           )}
         </Card>

@@ -23,6 +23,12 @@ export default {
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
+  		spacing: {
+  			'safe': 'env(safe-area-inset-bottom)',
+  			'safe-top': 'env(safe-area-inset-top)',
+  			'safe-right': 'env(safe-area-inset-right)',
+  			'safe-left': 'env(safe-area-inset-left)',
+  		},
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',

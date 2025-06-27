@@ -18,6 +18,7 @@ import { ChatInput } from "~/components/chat/ChatInput";
 import { ChatMessage } from "~/components/chat/ChatMessage";
 import { TypingIndicator } from "~/components/chat/TypingIndicator";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
+import { OnboardingEditModal } from "~/components/onboarding/OnboardingEditModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -105,6 +106,7 @@ export default function ChatPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isOnboardingEditOpen, setIsOnboardingEditOpen] = useState(false);
   
   // 현재 선택된 메시지 ID 추출
   const selectedMessageId = location.hash.replace('#', '');
@@ -193,15 +195,16 @@ export default function ChatPage() {
     
     return (
       <>
-        <div className="relative flex h-screen bg-light-gray md:static">
+        <div className="relative flex h-screen bg-light-gray md:static touch-manipulation">
           {isSidebarOpen && (
             <div 
-              className="fixed inset-0 z-10 bg-black/60 md:hidden"
+              className="fixed inset-0 z-10 bg-black/60 md:hidden touch-manipulation"
               onClick={() => setIsSidebarOpen(false)}
             />
           )}
           <aside className={cn(
             "absolute top-0 left-0 z-20 flex h-full w-64 flex-col border-r bg-white transition-transform duration-300 ease-in-out md:relative md:translate-x-0",
+            "touch-manipulation overscroll-contain",
             isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           )}>
             <Tabs defaultValue="chat" className="flex flex-col flex-1 h-full overflow-y-hidden">
@@ -230,14 +233,15 @@ export default function ChatPage() {
                       <div
                         key={chat.id}
                         className={cn(
-                          "flex items-center justify-between rounded-md group hover:bg-gray-100",
+                          "flex items-center justify-between rounded-md group",
+                          "md:hover:bg-gray-100 active:bg-gray-100 touch-manipulation",
                           params.chatId === chat.id && "bg-gray-200"
                         )}
                       >
                         <Link
                           to={`/chat/${chat.id}`}
                           className={cn(
-                            "flex-grow p-2 text-sm truncate",
+                            "flex-grow p-2 text-sm truncate touch-manipulation",
                             params.chatId === chat.id && "font-semibold"
                           )}
                           onClick={() => setIsSidebarOpen(false)}
@@ -247,13 +251,15 @@ export default function ChatPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="flex-shrink-0 w-8 h-8 opacity-0 group-hover:opacity-100 mx-1"
-                          onClick={() => {
+                          className="flex-shrink-0 w-8 h-8 opacity-100 md:opacity-0 md:group-hover:opacity-100 group-active:opacity-100 mx-1 touch-manipulation"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             setChatToDelete(chat.id);
                             setIsDeleteDialogOpen(true);
                           }}
                         >
-                          <Trash2 className="h-4 w-4 text-gray-400 hover:text-gray-800" />
+                          <Trash2 className="h-4 w-4 text-gray-400 md:hover:text-gray-800 active:text-gray-800" />
                         </Button>
                       </div>
                     ))}
@@ -274,10 +280,10 @@ export default function ChatPage() {
                             key={bookmark.id}
                             to={`/chat/${bookmark.message.chatId}#${bookmark.message.id}`}
                             className={cn(
-                              "block rounded-lg p-3 group transition-all duration-200 border",
+                              "block rounded-lg p-3 group transition-all duration-200 border touch-manipulation",
                               isSelected 
                                 ? "bg-blue-50 border-blue-200 shadow-sm" 
-                                : "hover:bg-gray-50 border-gray-100 hover:border-gray-200 hover:shadow-sm"
+                                : "md:hover:bg-gray-50 active:bg-gray-50 border-gray-100 md:hover:border-gray-200 md:hover:shadow-sm"
                             )}
                             onClick={() => setIsSidebarOpen(false)}
                           >
@@ -287,7 +293,7 @@ export default function ChatPage() {
                               </div>
                               <div className={cn(
                                 "flex items-center text-xs transition-opacity",
-                                isSelected ? "opacity-100 text-blue-600" : "opacity-0 group-hover:opacity-100 text-blue-500"
+                                isSelected ? "opacity-100 text-blue-600" : "opacity-0 md:group-hover:opacity-100 group-active:opacity-100 text-blue-500"
                               )}>
                                 <Bookmark className="h-3 w-3 mr-1 fill-current" />
                                 <span>저장됨</span>
@@ -315,13 +321,16 @@ export default function ChatPage() {
             <div className="flex-shrink-0 p-4 border-t flex items-center gap-2">
               <UserButton />
               {userProfile && (
-                <div className="text-sm overflow-hidden text-ellipsis whitespace-nowrap">
+                <button 
+                  onClick={() => setIsOnboardingEditOpen(true)}
+                  className="text-sm overflow-hidden text-ellipsis whitespace-nowrap hover:bg-gray-100 p-2 rounded-md transition-colors flex-1 text-left"
+                >
                   <p className="font-semibold">{`${userProfile.baby_nickname} ${
                     userProfile.relation === 'father' ? '아빠' : 
                     userProfile.relation === 'mother' ? '엄마' : 
                     userProfile.relation
                   }`}</p>
-                </div>
+                </button>
               )}
             </div>
           </aside>
@@ -351,10 +360,13 @@ export default function ChatPage() {
                   </Link>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="text-right">
+                  <button 
+                    onClick={() => setIsOnboardingEditOpen(true)}
+                    className="text-right hover:bg-gray-100 p-2 rounded-md transition-colors cursor-pointer"
+                  >
                     <p className="text-xs text-muted-foreground">{greeting}</p>
                     <h1 className="text-sm font-medium">{dDayText}</h1>
-                  </div>
+                  </button>
                 </div>
               </div>
             </header>
@@ -389,49 +401,64 @@ export default function ChatPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        
+        {/* 온보딩 정보 수정 모달 */}
+        <OnboardingEditModal 
+          isOpen={isOnboardingEditOpen}
+          onOpenChange={setIsOnboardingEditOpen}
+          userProfile={userProfile}
+          onSuccess={() => {
+            // 수정 완료 후 페이지 새로고침으로 데이터 업데이트
+            setTimeout(() => {
+              window.location.reload();
+            }, 100);
+          }}
+        />
       </>
     );
   }
 
   // --- Guest Mode Render ---
   return (
-    <div className="flex flex-col h-screen bg-light-gray">
+    <div className="flex flex-col h-screen bg-light-gray touch-manipulation">
       <header className="border-b bg-white">
       <div className="mx-auto flex w-full max-w-4xl items-center justify-between p-4">
-          <Link to="/chat">
+          <Link to="/chat" className="touch-manipulation">
             <div className="flex items-center gap-2">
               <img
                 src="/ansimi.png"
                 alt="안심이 로고"
                 className="h-8 w-8"
               />
-              <span className="text-xl font-bold text-dark-gray">
+              <span className="text-lg sm:text-xl font-bold text-dark-gray">
                 예비맘, 안심 톡
               </span>
             </div>
           </Link>
           <SignedOut>
             <SignInButton mode="modal">
-              <Button>시작하기</Button>
+              <Button className="touch-manipulation">시작하기</Button>
             </SignInButton>
           </SignedOut>
         </div>
       </header>
 
       <main className="flex-1 flex flex-col overflow-y-hidden">
-        <div className="flex-1 w-full max-w-4xl px-4 pt-4 mx-auto space-y-4 overflow-y-auto no-scrollbar">
+        <div className="flex-1 w-full max-w-4xl px-2 sm:px-4 pt-4 mx-auto space-y-4 overflow-y-auto no-scrollbar overscroll-contain">
           {messages.map((msg) => (
-            <ChatMessage key={msg.id} {...msg} />
+            <div key={msg.id} className="w-full min-w-0">
+              <ChatMessage {...msg} />
+            </div>
           ))}
           {isLoading && (
-            <div className="flex items-start gap-3 justify-start">
-              <Avatar>
+            <div className="flex items-start gap-2 sm:gap-3 justify-start w-full min-w-0">
+              <Avatar className="flex-shrink-0">
                 <AvatarImage src="/ansimi.png" alt="안심이 마스코트" />
                 <AvatarFallback>
                   <Bot className="h-6 w-6" />
                 </AvatarFallback>
               </Avatar>
-              <div className="bg-muted rounded-lg">
+              <div className="bg-muted rounded-lg min-w-0">
                 <TypingIndicator />
               </div>
             </div>
@@ -443,7 +470,7 @@ export default function ChatPage() {
         </div>
       </main>
 
-      <footer className="bg-white border-t">
+      <footer className="bg-white border-t pb-safe">
         <div className="w-full max-w-4xl p-4 mx-auto">
           <ChatInput onSendMessage={handleGuestSendMessage} isLoading={isLoading} />
         </div>
