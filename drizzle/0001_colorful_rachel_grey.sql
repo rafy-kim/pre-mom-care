@@ -1,1 +1,0 @@
-ALTER TABLE "user_profiles" RENAME COLUMN "nickname" TO "baby_nickname";

@@ -4,7 +4,7 @@ import {
   timestamp,
   varchar,
   jsonb,
-  serial,
+  integer,
   customType,
 } from 'drizzle-orm/pg-core'
 import { relations } from "drizzle-orm";
@@ -76,7 +76,7 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
 }));
 
 export const documents = pgTable('documents', {
-  id: serial('id').primaryKey(),
+  id: integer('id').primaryKey().generatedByDefaultAsIdentity(),
   refType: text('ref_type', { enum: ['book', 'youtube', 'paper'] }).notNull(),
   title: text('title').notNull(),
   content: text('content').notNull(),
