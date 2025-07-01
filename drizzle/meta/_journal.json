@@ -5,8 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1751270930369,
-      "tag": "0000_tiny_hitman",
+      "when": 1751285552101,
+      "tag": "0000_majestic_red_wolf",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1751374073107,
+      "tag": "0001_colossal_harpoon",
       "breakpoints": true
     }
   ]

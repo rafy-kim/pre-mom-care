@@ -27,6 +27,10 @@ export const userProfiles = pgTable("user_profiles", {
   membershipTier: text("membership_tier", { 
     enum: ["basic", "premium", "expert"] 
   }).default("basic").notNull(),
+  dailyQuestionsUsed: integer("daily_questions_used").default(0).notNull(),
+  weeklyQuestionsUsed: integer("weekly_questions_used").default(0).notNull(),
+  monthlyQuestionsUsed: integer("monthly_questions_used").default(0).notNull(),
+  lastQuestionAt: timestamp("last_question_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

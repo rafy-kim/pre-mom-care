@@ -12,7 +12,7 @@ import { getAuth } from "@clerk/remix/ssr.server";
 import { nanoid } from "nanoid";
 import { and, eq, desc, asc, isNotNull, sql } from "drizzle-orm";
 
-import { db, chats, messages, bookmarks } from "~/db";
+import { db, chats, messages, bookmarks, userProfiles } from "~/db";
 import { IMessage } from "types";
 
 import { ChatInput } from "~/components/chat/ChatInput";
@@ -20,6 +20,9 @@ import { ChatMessage } from "~/components/chat/ChatMessage";
 import { TypingIndicator } from "~/components/chat/TypingIndicator";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Bot } from "lucide-react";
+import { QuestionLimitIndicator } from "~/components/freemium/QuestionLimitIndicator";
+import { PremiumUpgradeModal } from "~/components/freemium/PremiumUpgradeModal";
+import { useFreemiumPolicy } from "~/hooks/useFreemiumPolicy";
 
 export const loader = async (args: LoaderFunctionArgs) => {
   const { userId } = await getAuth(args);
@@ -31,6 +34,16 @@ export const loader = async (args: LoaderFunctionArgs) => {
 
   if (!chatId) {
     return redirect("/chat");
+  }
+
+  const userProfile = await db.query.userProfiles.findFirst({
+    where: eq(userProfiles.id, userId),
+  });
+
+  if (!userProfile) {
+    // This case should ideally not happen if user is logged in
+    // and has gone through onboarding
+    return redirect("/onboarding");
   }
 
   const chat = await db.query.chats.findFirst({
@@ -64,6 +77,7 @@ export const loader = async (args: LoaderFunctionArgs) => {
 
   return json({
     chatId,
+    userProfile,
     messages: messageList.map((msg) => ({
       ...msg,
       content: msg.content as any, // Avoid TS errors for content structure
@@ -112,23 +126,63 @@ export const action = async (args: ActionFunctionArgs) => {
     return json({ error: "Message is required" }, { status: 400 });
   }
 
-  // Get previous messages to send as history
-  const history = await db.query.messages.findMany({
-    where: eq(messages.chatId, chatId),
-    orderBy: (messages, { asc }) => [asc(messages.createdAt)],
+  // --- Freemium Logic: Check and Update Counts ---
+  const profile = await db.query.userProfiles.findFirst({
+    where: eq(userProfiles.id, userId),
   });
 
-  // 1. Save user message
+  if (!profile) {
+    return json({ error: "User profile not found." }, { status: 404 });
+  }
+
+  // TODO: Implement time-based reset logic here
+  // For now, we just check the counts
+
+  const isPremium = profile.membershipTier === 'premium';
+  if (!isPremium) {
+    if (profile.dailyQuestionsUsed >= 3) { // Use constant later
+      return json({ error: "Daily limit reached." }, { status: 429 });
+    }
+    if (profile.weeklyQuestionsUsed >= 10) { // Use constant later
+      return json({ error: "Weekly limit reached." }, { status: 429 });
+    }
+    if (profile.monthlyQuestionsUsed >= 30) { // Use constant later
+      return json({ error: "Monthly limit reached." }, { status: 429 });
+    }
+  }
+
+  // Define userMessage outside the transaction to use it in history
   const userMessage: IMessage = {
     id: nanoid(),
     role: "user",
     content: userMessageContent,
   };
-  await db.insert(messages).values({
-    id: userMessage.id,
-    chatId: chatId,
-    role: userMessage.role,
-    content: userMessage.content,
+
+  // Increment counts in a transaction
+  await db.transaction(async (tx) => {
+    // 1. Increment user question counts
+    await tx.update(userProfiles)
+      .set({
+        dailyQuestionsUsed: sql`${userProfiles.dailyQuestionsUsed} + 1`,
+        weeklyQuestionsUsed: sql`${userProfiles.weeklyQuestionsUsed} + 1`,
+        monthlyQuestionsUsed: sql`${userProfiles.monthlyQuestionsUsed} + 1`,
+        lastQuestionAt: new Date(),
+      })
+      .where(eq(userProfiles.id, userId));
+
+    // 2. Save user message
+    await tx.insert(messages).values({
+      id: userMessage.id,
+      chatId: chatId,
+      role: userMessage.role,
+      content: userMessage.content,
+    });
+  });
+
+  // Get previous messages to send as history
+  const history = await db.query.messages.findMany({
+    where: eq(messages.chatId, chatId),
+    orderBy: (messages, { asc }) => [asc(messages.createdAt)],
   });
 
   const fullHistory = [...history, userMessage];
@@ -178,11 +232,15 @@ export const action = async (args: ActionFunctionArgs) => {
 };
 
 export default function ChatIdPage() {
-  const { messages: initialMessages, chatId } = useLoaderData<typeof loader>();
+  const { messages: initialMessages, chatId, userProfile } = useLoaderData<typeof loader>();
   const [messages, setMessages] = useState<IMessage[]>(initialMessages as IMessage[]);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const fetcher = useFetcher<typeof action>();
   const location = useLocation();
   const isLoading = fetcher.state !== "idle";
+  
+  // Freemium 정책 훅
+  const freemium = useFreemiumPolicy(userProfile);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const highlightedMessageRef = useRef<HTMLDivElement>(null);
@@ -255,7 +313,16 @@ export default function ChatIdPage() {
     }
   }, [fetcher.data, messages, chatId]);
 
-  const handleSendMessage = (text: string) => {
+  const handleSendMessage = async (text: string) => {
+    // 🎯 Freemium 질문 제한 체크
+    const limitCheck = freemium.checkQuestionLimit();
+    
+    if (!limitCheck.canAsk) {
+      // 질문 제한 도달 시 업그레이드 모달 표시
+      setShowUpgradeModal(true);
+      return;
+    }
+
     const newUserMessage: IMessage = {
       id: String(Date.now()),
       role: "user",
@@ -263,13 +330,45 @@ export default function ChatIdPage() {
     };
     setMessages((prev) => [...prev, newUserMessage]);
     
+    // 질문 횟수 증가
+    await freemium.incrementQuestionCount();
+    
     const formData = new FormData();
     formData.append("message", text);
     fetcher.submit(formData, { method: "post" });
   };
 
+  // 업그레이드 버튼 클릭 핸들러
+  const handleUpgrade = () => {
+    // TODO: 실제 결제 페이지로 이동 또는 결제 플로우 시작
+    console.log("업그레이드 버튼 클릭됨");
+    setShowUpgradeModal(false);
+    // 예: window.location.href = "/subscribe";
+  };
+
+  // 모달 닫기 핸들러
+  const handleCloseModal = () => {
+    setShowUpgradeModal(false);
+  };
+
   return (
     <div className="flex h-full flex-col mobile-container">
+      {/* 질문 제한 표시 */}
+      <div className="w-full max-w-4xl px-2 sm:px-4 pt-4 mx-auto">
+        <QuestionLimitIndicator
+          compact
+          isLoading={freemium.isLoading}
+          isGuest={freemium.isGuest}
+          isSubscribed={freemium.isSubscribed}
+          remainingQuestions={freemium.remainingQuestions}
+          limitType={freemium.limitType}
+          guestQuestionsUsed={freemium.guestQuestionsUsed}
+          dailyQuestionsUsed={freemium.dailyQuestionsUsed}
+          weeklyQuestionsUsed={freemium.weeklyQuestionsUsed}
+          monthlyQuestionsUsed={freemium.monthlyQuestionsUsed}
+        />
+      </div>
+
       <div className="no-scrollbar w-full flex-1 space-y-4 overflow-y-auto px-2 sm:px-4 pt-4 max-w-4xl mx-auto overscroll-contain">
         {messages.map((msg) => (
           <div key={msg.id} className="w-full min-w-0">
@@ -300,6 +399,13 @@ export default function ChatIdPage() {
           <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
         </div>
       </footer>
+
+      {/* 프리미엄 업그레이드 모달 */}
+      <PremiumUpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={handleCloseModal}
+        onUpgrade={handleUpgrade}
+      />
     </div>
   );
 } 

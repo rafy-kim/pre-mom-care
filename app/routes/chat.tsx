@@ -19,6 +19,9 @@ import { ChatMessage } from "~/components/chat/ChatMessage";
 import { TypingIndicator } from "~/components/chat/TypingIndicator";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { OnboardingEditModal } from "~/components/onboarding/OnboardingEditModal";
+import { QuestionLimitIndicator } from "~/components/freemium/QuestionLimitIndicator";
+import { PremiumUpgradeModal } from "~/components/freemium/PremiumUpgradeModal";
+import { useFreemiumPolicy } from "~/hooks/useFreemiumPolicy";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -107,6 +110,11 @@ export default function ChatPage() {
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isOnboardingEditOpen, setIsOnboardingEditOpen] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  
+  // Freemium 정책 훅 (게스트 또는 로그인 사용자용)
+  const freemium = useFreemiumPolicy(userProfile);
   
   // 현재 선택된 메시지 ID 추출
   const selectedMessageId = location.hash.replace('#', '');
@@ -128,6 +136,20 @@ export default function ChatPage() {
   }, [messages, userProfile]);
 
   const handleGuestSendMessage = async (text: string) => {
+    console.log('🎯 [GUEST] handleGuestSendMessage 호출됨:', text);
+    
+    // 🎯 Freemium 질문 제한 체크
+    const limitCheck = freemium.checkQuestionLimit();
+    console.log('🎯 [GUEST] 제한 체크 결과:', limitCheck);
+    
+    if (!limitCheck.canAsk) {
+      console.log('🎯 [GUEST] 질문 제한 도달 - 모달 표시');
+      // 질문 제한 도달 시 업그레이드 모달 표시
+      setShowUpgradeModal(true);
+      return;
+    }
+
+    console.log('🎯 [GUEST] 질문 허용 - 메시지 전송');
     const newUserMessage: IMessage = {
       id: String(Date.now()),
       role: "user",
@@ -135,6 +157,11 @@ export default function ChatPage() {
     };
     setMessages((prev) => [...prev, newUserMessage]);
     setIsLoading(true);
+
+    // 질문 횟수 증가
+    console.log('🎯 [GUEST] 질문 카운트 증가 시작');
+    await freemium.incrementQuestionCount();
+    console.log('🎯 [GUEST] 질문 카운트 증가 완료');
 
     try {
       // Clerk 토큰을 포함하여 API 호출
@@ -175,6 +202,26 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // 로그인 버튼 클릭 핸들러 (게스트 모드용)
+  const handleGuestLogin = () => {
+    console.log("게스트 로그인 버튼 클릭됨");
+    setShowUpgradeModal(false); // 프리미엄 모달 먼저 닫기
+    setShowLoginModal(true); // 로그인 모달 열기
+  };
+
+  // 프리미엄 업그레이드 버튼 클릭 핸들러 (게스트 모드용)
+  const handleGuestUpgrade = () => {
+    console.log("게스트 프리미엄 업그레이드 버튼 클릭됨");
+    setShowUpgradeModal(false);
+    // 프리미엄 구독 페이지로 이동 (추후 구현)
+    alert("프리미엄 구독 기능은 곧 출시됩니다!");
+  };
+
+  // 모달 닫기 핸들러 (게스트 모드용)
+  const handleCloseModal = () => {
+    setShowUpgradeModal(false);
   };
   // --- End Guest Mode Logic ---
 
@@ -371,7 +418,7 @@ export default function ChatPage() {
               </div>
             </header>
             <main className="flex flex-1 flex-col overflow-y-hidden">
-              <Outlet />
+              <Outlet context={{ userProfile }} />
             </main>
           </div>
         </div>
@@ -435,13 +482,59 @@ export default function ChatPage() {
               </span>
             </div>
           </Link>
-          <SignedOut>
-            <SignInButton mode="modal">
-              <Button className="touch-manipulation">시작하기</Button>
-            </SignInButton>
-          </SignedOut>
+          <div className="flex items-center gap-2">
+            {/* 개발용 디버깅 버튼들 */}
+            {process.env.NODE_ENV === 'development' && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const status = freemium.getGuestStatus();
+                    console.log('🔍 [DEBUG] 게스트 상태:', status);
+                    alert(`게스트 상태:\n${JSON.stringify(status, null, 2)}`);
+                  }}
+                  className="text-xs hidden sm:block"
+                >
+                  상태확인
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    freemium.resetGuestState();
+                    console.log('🔄 [DEBUG] 게스트 상태 초기화됨');
+                    alert('게스트 상태가 초기화되었습니다.');
+                  }}
+                  className="text-xs hidden sm:block"
+                >
+                  초기화
+                </Button>
+              </>
+            )}
+            <SignedOut>
+              <SignInButton mode="modal">
+                <Button className="touch-manipulation">시작하기</Button>
+              </SignInButton>
+            </SignedOut>
+          </div>
         </div>
       </header>
+
+      {/* 질문 제한 표시 */}
+      <div className="w-full max-w-4xl px-2 sm:px-4 pt-4 mx-auto">
+        <QuestionLimitIndicator 
+          isLoading={freemium.isLoading}
+          isGuest={freemium.isGuest}
+          isSubscribed={freemium.isSubscribed}
+          remainingQuestions={freemium.remainingQuestions}
+          limitType={freemium.limitType}
+          guestQuestionsUsed={freemium.guestQuestionsUsed}
+          dailyQuestionsUsed={freemium.dailyQuestionsUsed}
+          weeklyQuestionsUsed={freemium.weeklyQuestionsUsed}
+          monthlyQuestionsUsed={freemium.monthlyQuestionsUsed}
+        />
+      </div>
 
       <main className="flex-1 flex flex-col overflow-y-hidden">
         <div className="flex-1 w-full max-w-4xl px-2 sm:px-4 pt-4 mx-auto space-y-4 overflow-y-auto no-scrollbar overscroll-contain">
@@ -475,6 +568,30 @@ export default function ChatPage() {
           <ChatInput onSendMessage={handleGuestSendMessage} isLoading={isLoading} />
         </div>
       </footer>
+
+      {/* 프리미엄 업그레이드 모달 */}
+      <PremiumUpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={handleCloseModal}
+        onUpgrade={handleGuestUpgrade}
+        onLogin={handleGuestLogin}
+      />
+
+      {/* 별도 로그인 모달 */}
+      <SignInButton 
+        mode="modal" 
+        fallbackRedirectUrl="/chat"
+      >
+        <Button 
+          ref={(ref) => {
+            if (showLoginModal && ref) {
+              ref.click();
+              setShowLoginModal(false);
+            }
+          }}
+          style={{ display: 'none' }}
+        />
+      </SignInButton>
     </div>
   );
 } 

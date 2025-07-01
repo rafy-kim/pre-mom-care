@@ -7,9 +7,17 @@ import pg from 'pg';
 // 🔧 디버그 모드 설정 - 배포시 false로 설정하세요
 const DEBUG_MODE = false;
 
+// 🎭 Freemium Mock 모드 설정 - 개발/테스트 환경에서 API 비용 절약
+const FREEMIUM_MOCK_MODE = process.env.FREEMIUM_MOCK_MODE === 'true';
+
 // 디버그 로그 헬퍼 함수
 const debugLog = DEBUG_MODE ? console.log : () => {};
 const debugError = DEBUG_MODE ? console.error : () => {};
+
+// Mock 모드 로그 헬퍼 함수
+const mockLog = (message: string) => {
+  console.log(`🎭 [Mock Mode] ${message}`);
+};
 
 // Initialize a connection pool to the Neon database
 const pool = new pg.Pool({
@@ -95,6 +103,104 @@ const SYSTEM_PROMPT = `
   ]
 }
 `;
+
+// 🎭 Mock 응답 데이터 - Freemium 정책 테스트용
+const MOCK_RESPONSES = [
+  {
+    answer: "임신 초기에는 엽산 섭취가 정말 중요해요! 하루 400~800μg 정도 섭취하시는 것이 좋습니다. 엽산은 태아의 신경관 결손을 예방하는 데 도움을 줘요. 시금치, 브로콜리 같은 녹색 채소나 엽산 보충제를 통해 섭취하실 수 있어요. 제가 드린 정보는 의학적 조언이 아니니, 꼭 전문의와 상담하여 정확한 정보를 확인하시는 것 잊지 마세요!",
+    sources: [
+      {
+        reference: "임신 중 영양 관리 가이드",
+        refType: "youtube" as const,
+        videoTitle: "임신 초기 엽산의 중요성",
+        videoUrl: "https://youtube.com/watch?v=mock-video-1",
+        timestamp: 120
+      }
+    ]
+  },
+  {
+    answer: "입덧은 정말 힘드시죠. 개인차가 있지만 보통 12주 정도가 되면 호전되는 경우가 많아요. 소량씩 자주 드시고, 생강차나 레몬 물이 도움이 될 수 있어요. 너무 심하시면 산부인과에 꼭 상담받아보세요. 제가 드린 정보는 의학적 조언이 아니니, 꼭 전문의와 상담하여 정확한 정보를 확인하시는 것 잊지 마세요!",
+    sources: [
+      {
+        reference: "임신 증상 이해하기",
+        refType: "youtube" as const,
+        videoTitle: "입덧 극복하는 방법",
+        videoUrl: "https://youtube.com/watch?v=mock-video-2",
+        timestamp: 300
+      }
+    ]
+  },
+  {
+    answer: "임신 중 운동은 적당히 하시는 게 좋아요! 산책이나 요가, 수영 등 가벼운 운동은 도움이 됩니다. 하지만 격렬한 운동이나 배에 충격이 갈 수 있는 운동은 피하시는 게 좋겠어요. 운동 전에는 꼭 담당 의사와 상의해 보세요. 제가 드린 정보는 의학적 조언이 아니니, 꼭 전문의와 상담하여 정확한 정보를 확인하시는 것 잊지 마세요!",
+    sources: [
+      {
+        reference: "임신 중 건강 관리",
+        refType: "youtube" as const,
+        videoTitle: "임산부를 위한 안전한 운동",
+        videoUrl: "https://youtube.com/watch?v=mock-video-3",
+        timestamp: 180
+      }
+    ]
+  },
+  {
+    answer: "태동을 처음 느끼시는 건 정말 신기하고 감동적이에요! 보통 18~22주 정도에 처음 느끼시는 경우가 많아요. 처음에는 장이 꿈틀거리는 느낌이나 가스가 차는 느낌과 비슷할 수 있어요. 시간이 지나면서 점점 더 확실하게 느끼실 수 있을 거예요. 제가 드린 정보는 의학적 조언이 아니니, 꼭 전문의와 상담하여 정확한 정보를 확인하시는 것 잊지 마세요!",
+    sources: [
+      {
+        reference: "임신 중기 변화",
+        refType: "youtube" as const,
+        videoTitle: "태동 느끼기 시작하는 시기",
+        videoUrl: "https://youtube.com/watch?v=mock-video-4", 
+        timestamp: 240
+      }
+    ]
+  },
+  {
+    answer: "예비아빠로서 많이 걱정되고 궁금하실 거예요! 아내의 컨디션을 자주 물어보시고, 병원 검진에 함께 가주시면 정말 큰 힘이 될 거예요. 집안일을 도와주시고, 아내가 좋아하는 음식을 준비해 주시는 것도 좋겠어요. 무엇보다 아내의 이야기를 잘 들어주시는 것이 가장 중요해요. 제가 드린 정보는 의학적 조언이 아니니, 꼭 전문의와 상담하여 정확한 정보를 확인하시는 것 잊지 마세요!",
+    sources: [
+      {
+        reference: "예비아빠 가이드",
+        refType: "youtube" as const,
+        videoTitle: "임신 중 남편의 역할",
+        videoUrl: "https://youtube.com/watch?v=mock-video-5",
+        timestamp: 360
+      }
+    ]
+  }
+];
+
+/**
+ * Mock API 응답을 생성하는 함수
+ * Freemium 정책 테스트 및 개발 환경에서 API 비용 절약을 위해 사용
+ */
+function generateMockResponse(message: string) {
+  mockLog(`Generating mock response for: "${message.substring(0, 50)}..."`);
+  
+  // 질문에 따라 적절한 Mock 응답 선택
+  const lowerMessage = message.toLowerCase();
+  let selectedResponse;
+  
+  if (lowerMessage.includes('엽산') || lowerMessage.includes('영양')) {
+    selectedResponse = MOCK_RESPONSES[0];
+  } else if (lowerMessage.includes('입덧') || lowerMessage.includes('메스꺼')) {
+    selectedResponse = MOCK_RESPONSES[1];
+  } else if (lowerMessage.includes('운동') || lowerMessage.includes('활동')) {
+    selectedResponse = MOCK_RESPONSES[2];
+  } else if (lowerMessage.includes('태동') || lowerMessage.includes('움직')) {
+    selectedResponse = MOCK_RESPONSES[3];
+  } else if (lowerMessage.includes('아빠') || lowerMessage.includes('남편')) {
+    selectedResponse = MOCK_RESPONSES[4];
+  } else {
+    // 기본 응답 (랜덤 선택)
+    selectedResponse = MOCK_RESPONSES[Math.floor(Math.random() * MOCK_RESPONSES.length)];
+  }
+  
+  mockLog(`Selected mock response: ${selectedResponse.answer.substring(0, 50)}...`);
+  
+  // Mock 비용 계산 (실제 API 호출하지 않으므로 0원)
+  calculateAndLogCost(0, 0, 0, "Mock API Call (Free)");
+  
+  return selectedResponse;
+}
 
 /**
  * Groups documents by reference and formats them into a context string.
@@ -347,11 +453,38 @@ export const action = async (args: ActionFunctionArgs) => {
     
     debugLog(`💬 [Query] "${message}"`);
 
-    // 사용자 등급 조회 (로그인한 사용자만, 게스트는 기본 등급)
-    let userTier: MembershipTier = 'basic';
-    if (userId) {
-      userTier = await getUserMembershipTier(userId);
+    // 🎭 Mock 모드 체크 - 환경 변수로 활성화/비활성화
+    if (FREEMIUM_MOCK_MODE) {
+      mockLog("Mock mode is enabled - returning mock response");
+      mockLog(`Environment FREEMIUM_MOCK_MODE: ${process.env.FREEMIUM_MOCK_MODE}`);
+      
+      // 🎯 [MOCK] Mock 모드에서는 Freemium 체크를 클라이언트에 맡김
+      console.log('🎯 [MOCK] Mock 모드 - 게스트/로그인 관계없이 Mock 응답 제공');
+      
+      // Mock 응답 생성 (지연 시뮬레이션: 실제 API 호출처럼 1-2초 대기)
+      const delay = 1000 + Math.random() * 1000; // 1-2초 랜덤 지연
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      const mockResponse = generateMockResponse(message);
+      return json({ reply: mockResponse });
     }
+
+    mockLog("Mock mode is disabled - proceeding with real API call");
+
+    // 🎯 [API FREEMIUM] 게스트 사용자 차단
+    console.log('🎯 [API FREEMIUM] /api/gemini 액션 호출됨 - userId:', userId);
+    
+    if (!userId) {
+      console.log('🎯 [API FREEMIUM] 게스트 사용자 감지 - API 접근 차단');
+      return json({ 
+        error: "Guest access denied",
+        freemiumBlock: true,
+        message: "로그인 후 이용해주세요. 게스트는 제한된 기능만 사용 가능합니다." 
+      }, { status: 403 });
+    }
+
+    // 사용자 등급 조회 (로그인한 사용자만)
+    const userTier = await getUserMembershipTier(userId);
     
     const allowedRefTypes = TIER_PERMISSIONS[userTier].allowedRefTypes;
 
