@@ -390,14 +390,6 @@ export default function ChatIdPage() {
     prevFetcherState.current = fetcher.state;
   }, [fetcher.state, fetcher.data, messages, freemium]);
 
-  // 업그레이드 버튼 클릭 핸들러
-  const handleUpgrade = () => {
-    // TODO: 실제 결제 페이지로 이동 또는 결제 플로우 시작
-    console.log("업그레이드 버튼 클릭됨");
-    setShowUpgradeModal(false);
-    // 예: window.location.href = "/subscribe";
-  };
-
   // 모달 닫기 핸들러
   const handleCloseModal = () => {
     setShowUpgradeModal(false);
@@ -456,7 +448,6 @@ export default function ChatIdPage() {
       <PremiumUpgradeModal
         isOpen={showUpgradeModal}
         onClose={handleCloseModal}
-        onUpgrade={handleUpgrade}
       />
     </div>
   );

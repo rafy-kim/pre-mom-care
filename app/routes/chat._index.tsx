@@ -328,16 +328,6 @@ export default function ChatIndexPage() {
     submit(formData, { method: "post" });
   };
 
-  // 업그레이드 버튼 클릭 핸들러
-  const handleUpgrade = () => {
-    // TODO: 실제 결제 페이지로 이동 또는 결제 플로우 시작
-    console.log("업그레이드 버튼 클릭됨");
-    setShowUpgradeModal(false);
-    // 다음 액션을 위해 상태 초기화
-    setProcessedActionId(null);
-    // 예: window.location.href = "/subscribe";
-  };
-
   // 모달 닫기 핸들러
   const handleCloseModal = () => {
     console.log('🔽 [CLIENT] 모달 닫기');
@@ -396,7 +386,6 @@ export default function ChatIndexPage() {
       <PremiumUpgradeModal
         isOpen={showUpgradeModal}
         onClose={handleCloseModal}
-        onUpgrade={handleUpgrade}
       />
     </div>
   );

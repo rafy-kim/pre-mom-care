@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { useUser } from "@clerk/remix";
 import {
   Dialog,
   DialogContent,
@@ -9,26 +10,36 @@ import {
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
-import { Check, Crown, Zap, Clock, Calendar, CalendarDays, Heart, LogIn, Gift } from "lucide-react";
+import { Alert, AlertDescription } from "~/components/ui/alert";
+import { 
+  Check, Crown, Zap, Clock, Calendar, CalendarDays, Heart, LogIn, 
+  Gift, Loader2, AlertCircle, CreditCard 
+} from "lucide-react";
 import { useFreemiumPolicy } from "~/hooks/useFreemiumPolicy";
+import { IPaymentApiResponse, IPremiumUpgradeModalProps } from "types";
 
-interface IPremiumUpgradeModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onUpgrade: () => void;
-  onLogin?: () => void;
-}
+// 🎯 고정된 프리미엄 플랜 정보 (크기 변화 방지)
+const PREMIUM_FEATURES = [
+  "개인화된 조언",
+  "신뢰할 수 있는 출처 기반 답변", 
+  "대화 기록 무제한 저장",
+  "모든 기기 동기화",
+  "무제한 질문"
+];
+
+const PLAN_ID = "premium-monthly";
+const PLAN_NAME = "프리미엄 월간";
 
 /**
- * 결제 유도 모달 컴포넌트
- * 질문 제한 도달 시 프리미엄 업그레이드를 유도합니다.
+ * 토스페이먼츠 통합 결제 모달 컴포넌트
+ * 질문 제한 도달 시 프리미엄 구독을 유도하고 실제 결제를 처리합니다.
  */
 export function PremiumUpgradeModal({ 
   isOpen, 
   onClose, 
-  onUpgrade,
   onLogin
 }: IPremiumUpgradeModalProps) {
+  const { user } = useUser();
   const {
     isGuest,
     limitType,
@@ -36,29 +47,138 @@ export function PremiumUpgradeModal({
     LIMITS,
   } = useFreemiumPolicy();
 
+  // 상태 관리 (가격만 동적 로드)
+  const [price, setPrice] = useState<number>(2900); // 기본값
+  const [isLoadingPrice, setIsLoadingPrice] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 가격 정보만 로드
+  useEffect(() => {
+    if (isOpen && !isGuest) {
+      loadPrice();
+    }
+  }, [isOpen, isGuest]);
+
+  const loadPrice = async () => {
+    setIsLoadingPrice(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/subscription/plans');
+      const result: IPaymentApiResponse<any[]> = await response.json();
+      
+      if (result.success && result.data && result.data.length > 0) {
+        // 첫 번째 플랜의 가격만 사용
+        setPrice(result.data[0].price);
+      } else {
+        console.warn('⚠️ [Price Load] 가격 로드 실패, 기본값 사용:', 2900);
+        // 에러는 표시하지 않고 기본값 유지
+      }
+    } catch (error) {
+      console.error('❌ [Price Load Error]', error);
+      // 에러는 표시하지 않고 기본값 유지
+    } finally {
+      setIsLoadingPrice(false);
+    }
+  };
+
+  // 결제 처리
+  const handlePayment = async () => {
+    if (!user?.primaryEmailAddress?.emailAddress) {
+      setError("필수 정보가 누락되었습니다.");
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    setError(null);
+
+    try {
+      console.log('🎯 [Payment Start] 결제 시작:', {
+        planId: PLAN_ID,
+        planName: PLAN_NAME,
+        amount: price
+      });
+
+      // 1. 결제 요청 생성
+      const createResponse = await fetch('/api/payment/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          planId: PLAN_ID,
+          customerEmail: user.primaryEmailAddress.emailAddress,
+          customerName: user.fullName || user.firstName || 'Unknown'
+        })
+      });
+
+      const createResult: IPaymentApiResponse = await createResponse.json();
+
+      if (!createResult.success || !createResult.data) {
+        throw new Error(createResult.error || "결제 요청 생성에 실패했습니다.");
+      }
+
+      console.log('✅ [Payment Request Created]', createResult.data);
+
+      // 🎯 프리미엄 모달을 먼저 닫기 (토스페이먼츠 모달과의 충돌 방지)
+      console.log('🔽 [Payment] 프리미엄 모달 닫는 중...');
+      onClose();
+
+      // 모달 닫힘 애니메이션을 위한 약간의 지연
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // 2. 토스페이먼츠 SDK 로드 및 결제 위젯 호출
+      const { loadTossPayments } = await import('@tosspayments/payment-sdk');
+      
+      // 테스트 환경용 클라이언트 키 (실제 결제되지 않음)
+      const tossClientKey = 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq';
+      const tossPayments = await loadTossPayments(tossClientKey);
+
+      console.log('💳 [Payment] 토스페이먼츠 결제 창 호출...');
+
+      // 3. 결제 창 호출
+      await tossPayments.requestPayment('카드', {
+        amount: createResult.data.amount,
+        orderId: createResult.data.orderId,
+        orderName: createResult.data.orderName,
+        customerName: createResult.data.customerName,
+        customerEmail: createResult.data.customerEmail,
+        successUrl: createResult.data.successUrl,
+        failUrl: createResult.data.failUrl,
+      });
+
+    } catch (error: any) {
+      console.error('❌ [Payment Error]', error);
+      
+      // 에러 발생 시에도 모달이 닫혀있을 수 있으므로 에러 알림 표시
+      if (error.message && !error.message.includes('사용자가 결제를 취소')) {
+        alert(`결제 오류: ${error.message}`);
+      }
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
   // 게스트 모드에서는 로그인 우선 유도
   if (isGuest) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-lg mx-4">
+        <DialogContent className="w-11/12 max-w-lg">
           <DialogHeader className="text-center space-y-4">
-            {/* 아이콘 */}
             <div className="flex justify-center">
               <Heart className="h-8 w-8 text-pink-500" />
             </div>
             
-            {/* 제목 */}
             <DialogTitle className="text-xl font-bold">
               체험하기가 끝났어요! 💝
             </DialogTitle>
             
-            {/* 설명 */}
             <DialogDescription className="text-base text-gray-600">
               로그인하시면 더 많은 질문을 하실 수 있어요.
             </DialogDescription>
           </DialogHeader>
 
-          {/* 로그인 혜택 */}
           <div className="space-y-4">
             <div className="bg-gradient-to-r from-blue-50 to-green-50 p-4 rounded-lg border">
               <div className="flex items-center gap-2 mb-3">
@@ -87,20 +207,21 @@ export function PremiumUpgradeModal({
             </div>
           </div>
 
-          <DialogFooter className="flex flex-col gap-3">
-            {/* 로그인 버튼 */}
+          <DialogFooter className="gap-2">
             <Button 
-              onClick={onLogin}
-              className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700"
-              size="lg"
+              onClick={onClose} 
+              variant="outline" 
+              className="flex-1"
             >
-              <LogIn className="h-4 w-4 mr-2" />
-              로그인하고 무료로 더 이용하기
+              나중에 하기
             </Button>
             
-            {/* 나중에 하기 */}
-            <Button variant="ghost" onClick={onClose} className="w-full text-gray-500">
-              나중에 하기
+            <Button 
+              onClick={onLogin} 
+              className="flex-1 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700"
+            >
+              <LogIn className="h-4 w-4 mr-2" />
+              로그인하기
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -108,125 +229,140 @@ export function PremiumUpgradeModal({
     );
   }
 
-  // 로그인 유저용 프리미엄 업그레이드 모달
+  // 제한 도달 메시지 생성
   const getLimitMessage = () => {
     switch (limitType) {
       case 'daily':
         return {
-          title: "오늘의 무료 질문을 모두 사용했어요! 🌙",
-          description: "내일 자정에 다시 3개의 무료 질문이 제공됩니다.",
-          icon: <Clock className="h-6 w-6 text-blue-500" />,
-          resetInfo: "내일 자정에 질문 횟수 초기화",
+          title: '일일 질문 한도 도달',
+          message: `하루 ${LIMITS.DAILY_FREE_LIMIT}개 질문 한도를 모두 사용했어요`,
+          resetInfo: '내일 자정에 초기화됩니다'
         };
       case 'weekly':
         return {
-          title: "이번 주 무료 질문을 모두 사용했어요! 📅",
-          description: "다음 주 월요일에 다시 10개의 무료 질문이 제공됩니다.",
-          icon: <Calendar className="h-6 w-6 text-green-500" />,
-          resetInfo: "다음 주 월요일에 질문 횟수 초기화",
+          title: '주간 질문 한도 도달',
+          message: `일주일 ${LIMITS.WEEKLY_FREE_LIMIT}개 질문 한도를 모두 사용했어요`,
+          resetInfo: '매주 월요일에 초기화됩니다'
         };
       case 'monthly':
         return {
-          title: "이번 달 무료 질문을 모두 사용했어요! 📆",
-          description: "다음 달 1일에 다시 30개의 무료 질문이 제공됩니다.",
-          icon: <CalendarDays className="h-6 w-6 text-purple-500" />,
-          resetInfo: "다음 달 1일에 질문 횟수 초기화",
+          title: '월간 질문 한도 도달',
+          message: `한 달 ${LIMITS.MONTHLY_FREE_LIMIT}개 질문 한도를 모두 사용했어요`,
+          resetInfo: '매월 1일에 초기화됩니다'
         };
       default:
         return {
-          title: "무료 질문을 모두 사용했어요! ⏰",
-          description: "프리미엄으로 업그레이드하여 무제한 질문을 이용해보세요.",
-          icon: <Zap className="h-6 w-6 text-yellow-500" />,
-          resetInfo: "프리미엄으로 무제한 이용",
+          title: '질문 한도 도달',
+          message: '무료 사용 한도를 모두 사용했어요',
+          resetInfo: '프리미엄으로 업그레이드하세요'
         };
     }
   };
 
-  const message = getLimitMessage();
-
-  // 프리미엄 혜택 목록 (간소화)
-  const premiumBenefits = [
-    "🚀 무제한 질문",
-    "📚 전문서적 기반 답변",
-    "⚡ 우선 응답",
-    "💎 프리미엄 콘텐츠",
-    "🎯 개인화된 조언",
-  ];
+  const limitMessage = getLimitMessage();
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="text-center space-y-4">
-          {/* 아이콘 */}
+      <DialogContent className="w-11/12 max-w-md fixed-height">
+        <DialogHeader className="text-center space-y-3">
           <div className="flex justify-center">
-            {message.icon}
+            <div className="relative">
+              <Crown className="h-10 w-10 text-yellow-500" />
+              <Zap className="h-4 w-4 text-orange-500 absolute -top-1 -right-1 animate-pulse" />
+            </div>
           </div>
           
-          {/* 제목 */}
-          <DialogTitle className="text-xl font-bold">
-            {message.title}
+          <DialogTitle className="text-xl font-bold text-gray-900">
+            {limitMessage.title}
           </DialogTitle>
           
-          {/* 설명 */}
-          <DialogDescription className="text-base text-gray-600">
-            {message.description}
+          <DialogDescription className="text-gray-600">
+            {limitMessage.message}
           </DialogDescription>
-
-          {/* 리셋 정보 */}
-          <div className="bg-blue-50 p-3 rounded-lg">
-            <p className="text-sm text-blue-700">
-              💡 {message.resetInfo}
-            </p>
-          </div>
         </DialogHeader>
 
-        {/* 프리미엄 플랜 소개 */}
+        {/* 🎯 고정된 프리미엄 플랜 UI */}
         <div className="space-y-4">
-          {/* 프리미엄 헤더 */}
-          <div className="text-center bg-gradient-to-r from-purple-100 to-pink-100 p-4 rounded-lg">
-            <div className="flex items-center justify-center gap-2 mb-2">
+          {/* 프리미엄 혜택 */}
+          <div className="bg-gradient-to-br from-purple-50 to-blue-50 p-4 rounded-xl border border-purple-100">
+            <div className="flex items-center gap-2 mb-3">
               <Crown className="h-5 w-5 text-purple-600" />
-              <h3 className="font-bold text-purple-800">프리미엄 플랜</h3>
-              <Badge className="bg-purple-600 text-white">추천</Badge>
+              <h3 className="font-bold text-purple-900">{PLAN_NAME}</h3>
+              <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                추천
+              </Badge>
             </div>
-            <div className="text-2xl font-bold text-purple-800">
-              월 {LIMITS.SUBSCRIPTION_PRICE.toLocaleString()}원
-            </div>
-            <p className="text-sm text-purple-600 mt-1">
-              하루 커피 한 잔 값으로 무제한!
-            </p>
-          </div>
-
-          {/* 혜택 목록 (간소화) */}
-          <div className="space-y-2">
-            <h4 className="font-semibold text-sm text-gray-800 mb-3">
-              프리미엄 혜택
-            </h4>
-            <div className="grid gap-2">
-              {premiumBenefits.map((benefit, index) => (
+            
+            <div className="space-y-2">
+              {PREMIUM_FEATURES.map((feature, index) => (
                 <div key={index} className="flex items-center gap-2">
                   <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                  <span className="text-sm text-gray-700">{benefit}</span>
+                  <span className="text-sm text-gray-700">{feature}</span>
                 </div>
               ))}
             </div>
+
+            <div className="mt-4 pt-3 border-t border-purple-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm text-purple-700">월 구독</span>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-purple-900">
+                    {isLoadingPrice ? (
+                      <div className="animate-pulse bg-gray-200 h-6 w-16 rounded"></div>
+                    ) : (
+                      `${price.toLocaleString()}원`
+                    )}
+                  </div>
+                  <div className="text-xs text-purple-600">월 결제</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 에러 메시지 */}
+          {error && (
+            <Alert className="border-red-200 bg-red-50">
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              <AlertDescription className="text-red-700">{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* 리셋 안내 */}
+          <div className="text-center text-xs text-gray-500">
+            <Clock className="h-3 w-3 inline mr-1" />
+            {limitMessage.resetInfo}
           </div>
         </div>
 
-        <DialogFooter className="flex flex-col gap-3">
-          {/* 업그레이드 버튼 */}
+        <DialogFooter className="gap-2">
           <Button 
-            onClick={onUpgrade}
-            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-            size="lg"
+            onClick={onClose} 
+            variant="outline" 
+            className="flex-1"
+            disabled={isProcessingPayment}
           >
-            <Crown className="h-4 w-4 mr-2" />
-            프리미엄으로 업그레이드
+            나중에 하기
           </Button>
           
-          {/* 닫기 버튼 */}
-          <Button variant="ghost" onClick={onClose} className="w-full text-gray-500">
-            내일 다시 이용하기
+          <Button 
+            onClick={handlePayment}
+            disabled={isProcessingPayment || isLoadingPrice}
+            className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+          >
+            {isProcessingPayment ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                결제 중...
+              </>
+            ) : (
+              <>
+                <CreditCard className="h-4 w-4 mr-2" />
+                {isLoadingPrice ? '로딩 중...' : `${price.toLocaleString()}원 결제하기`}
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -15,6 +15,13 @@
       "when": 1751374073107,
       "tag": "0001_colossal_harpoon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1751434262243,
+      "tag": "0002_rare_morg",
+      "breakpoints": true
     }
   ]
 }

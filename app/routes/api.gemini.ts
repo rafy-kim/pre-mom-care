@@ -8,7 +8,14 @@ import pg from 'pg';
 const DEBUG_MODE = false;
 
 // 🎭 Freemium Mock 모드 설정 - 개발/테스트 환경에서 API 비용 절약
+console.log(`🔍 [ENV DEBUG] FREEMIUM_MOCK_MODE 환경 변수:`, {
+  rawValue: process.env.FREEMIUM_MOCK_MODE,
+  type: typeof process.env.FREEMIUM_MOCK_MODE,
+  isTrue: process.env.FREEMIUM_MOCK_MODE === 'true',
+  isFalse: process.env.FREEMIUM_MOCK_MODE === 'false'
+});
 const FREEMIUM_MOCK_MODE = process.env.FREEMIUM_MOCK_MODE === 'true';
+console.log(`🎭 [FINAL] FREEMIUM_MOCK_MODE 최종 값: ${FREEMIUM_MOCK_MODE}`);
 
 // 디버그 로그 헬퍼 함수
 const debugLog = DEBUG_MODE ? console.log : () => {};
@@ -666,7 +673,7 @@ export const action = async (args: ActionFunctionArgs) => {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
     
     const chatModel = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash",
       systemInstruction: SYSTEM_PROMPT,
       generationConfig: {
         responseMimeType: 'application/json',

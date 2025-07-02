@@ -232,13 +232,7 @@ export default function ChatPage() {
     setShowLoginModal(true); // 로그인 모달 열기
   };
 
-  // 프리미엄 업그레이드 버튼 클릭 핸들러 (게스트 모드용)
-  const handleGuestUpgrade = () => {
-    console.log("게스트 프리미엄 업그레이드 버튼 클릭됨");
-    setShowUpgradeModal(false);
-    // 프리미엄 구독 페이지로 이동 (추후 구현)
-    alert("프리미엄 구독 기능은 곧 출시됩니다!");
-  };
+
 
   // 모달 닫기 핸들러 (게스트 모드용)
   const handleCloseModal = () => {
@@ -594,7 +588,6 @@ export default function ChatPage() {
       <PremiumUpgradeModal
         isOpen={showUpgradeModal}
         onClose={handleCloseModal}
-        onUpgrade={handleGuestUpgrade}
         onLogin={handleGuestLogin}
       />
 
