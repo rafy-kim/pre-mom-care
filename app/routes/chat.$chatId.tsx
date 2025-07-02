@@ -126,57 +126,19 @@ export const action = async (args: ActionFunctionArgs) => {
     return json({ error: "Message is required" }, { status: 400 });
   }
 
-  // --- Freemium Logic: Check and Update Counts ---
-  const profile = await db.query.userProfiles.findFirst({
-    where: eq(userProfiles.id, userId),
-  });
-
-  if (!profile) {
-    return json({ error: "User profile not found." }, { status: 404 });
-  }
-
-  // TODO: Implement time-based reset logic here
-  // For now, we just check the counts
-
-  const isPremium = profile.membershipTier === 'premium';
-  if (!isPremium) {
-    if (profile.dailyQuestionsUsed >= 3) { // Use constant later
-      return json({ error: "Daily limit reached." }, { status: 429 });
-    }
-    if (profile.weeklyQuestionsUsed >= 10) { // Use constant later
-      return json({ error: "Weekly limit reached." }, { status: 429 });
-    }
-    if (profile.monthlyQuestionsUsed >= 30) { // Use constant later
-      return json({ error: "Monthly limit reached." }, { status: 429 });
-    }
-  }
-
-  // Define userMessage outside the transaction to use it in history
+  // Define userMessage for history
   const userMessage: IMessage = {
     id: nanoid(),
     role: "user",
     content: userMessageContent,
   };
 
-  // Increment counts in a transaction
-  await db.transaction(async (tx) => {
-    // 1. Increment user question counts
-    await tx.update(userProfiles)
-      .set({
-        dailyQuestionsUsed: sql`${userProfiles.dailyQuestionsUsed} + 1`,
-        weeklyQuestionsUsed: sql`${userProfiles.weeklyQuestionsUsed} + 1`,
-        monthlyQuestionsUsed: sql`${userProfiles.monthlyQuestionsUsed} + 1`,
-        lastQuestionAt: new Date(),
-      })
-      .where(eq(userProfiles.id, userId));
-
-    // 2. Save user message
-    await tx.insert(messages).values({
-      id: userMessage.id,
-      chatId: chatId,
-      role: userMessage.role,
-      content: userMessage.content,
-    });
+  // Save user message first (질문 카운트는 API에서 처리)
+  await db.insert(messages).values({
+    id: userMessage.id,
+    chatId: chatId,
+    role: userMessage.role,
+    content: userMessage.content,
   });
 
   // Get previous messages to send as history
@@ -187,58 +149,107 @@ export const action = async (args: ActionFunctionArgs) => {
 
   const fullHistory = [...history, userMessage];
 
-  // 2. Call AI - 내부 서버 통신이므로 인증 정보가 자동으로 포함됨
-  const geminiResponse = await fetch(
-    new URL("/api/gemini", args.request.url),
-    {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        // Clerk 인증 정보만 선택적으로 전달
-        ...(args.request.headers.get("authorization") && {
-          "authorization": args.request.headers.get("authorization")!
+  // 2. Call AI API with Freemium check
+  try {
+    console.log('🎯 [CHAT ACTION] AI API 호출 시작');
+    const geminiResponse = await fetch(
+      new URL("/api/gemini", args.request.url),
+      {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          // Clerk 인증 정보만 선택적으로 전달
+          ...(args.request.headers.get("authorization") && {
+            "authorization": args.request.headers.get("authorization")!
+          }),
+          ...(args.request.headers.get("cookie") && {
+            "cookie": args.request.headers.get("cookie")!
+          })
+        },
+        body: JSON.stringify({ 
+          message: userMessageContent, // The current question for vector search
+          history: fullHistory // The full conversation history for context
         }),
-        ...(args.request.headers.get("cookie") && {
-          "cookie": args.request.headers.get("cookie")!
-        })
-      },
-      body: JSON.stringify({ 
-        message: userMessageContent, // The current question for vector search
-        history: fullHistory // The full conversation history for context
-      }),
+      }
+    );
+
+    const responseData = await geminiResponse.json();
+
+    // Freemium 제한 차단 응답 처리
+    if (!geminiResponse.ok && responseData.freemiumBlock) {
+      console.log('🚫 [CHAT ACTION] AI API에서 제한 차단:', responseData.limitType);
+      
+      // 저장된 사용자 메시지 롤백
+      await db.delete(messages).where(eq(messages.id, userMessage.id));
+      
+      // Freemium 제한 정보 반환
+      return json({
+        error: responseData.error,
+        freemiumBlock: true,
+        limitType: responseData.limitType,
+        remainingQuestions: responseData.remainingQuestions,
+        message: responseData.message
+      }, { status: geminiResponse.status });
     }
-  );
 
-  if (!geminiResponse.ok) {
-    return json({ error: "AI service failed" }, { status: 500 });
+    // 기타 API 오류
+    if (!geminiResponse.ok) {
+      console.error('❌ [CHAT ACTION] AI API 오류:', responseData);
+      // 저장된 사용자 메시지 롤백
+      await db.delete(messages).where(eq(messages.id, userMessage.id));
+      return json({ error: responseData.error || "AI service failed" }, { status: 500 });
+    }
+
+    // 성공 응답 처리
+    const { reply, userCounts } = responseData;
+
+    // 3. Save AI message
+    const aiMessage: IMessage = {
+      id: nanoid(),
+      role: "assistant",
+      content: reply,
+    };
+    await db.insert(messages).values({
+      id: aiMessage.id,
+      chatId: chatId,
+      role: aiMessage.role,
+      content: aiMessage.content as any,
+    });
+
+    console.log('✅ [CHAT ACTION] AI 응답 저장 완료');
+    
+    // 응답에 userCounts 포함 (있는 경우)
+    const response: any = { ok: true, message: aiMessage };
+    if (userCounts) {
+      response.userCounts = userCounts;
+      console.log('📊 [CHAT ACTION] 최신 사용자 카운트 포함:', userCounts);
+    }
+    
+    return json(response);
+
+  } catch (error) {
+    console.error('❌ [CHAT ACTION] AI API 네트워크 오류:', error);
+    
+    // 저장된 사용자 메시지 롤백
+    await db.delete(messages).where(eq(messages.id, userMessage.id));
+    
+    return json({ 
+      error: "AI 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요." 
+    }, { status: 500 });
   }
-
-  const { reply } = await geminiResponse.json();
-
-  // 3. Save AI message
-  const aiMessage: IMessage = {
-    id: nanoid(),
-    role: "assistant",
-    content: reply,
-  };
-  await db.insert(messages).values({
-    id: aiMessage.id,
-    chatId: chatId,
-    role: aiMessage.role,
-    content: aiMessage.content as any,
-  });
-
-  return json({ ok: true, message: aiMessage });
 };
 
 export default function ChatIdPage() {
-  const { messages: initialMessages, chatId, userProfile } = useLoaderData<typeof loader>();
-  const [messages, setMessages] = useState<IMessage[]>(initialMessages as IMessage[]);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const { chatId, userProfile, messages: initialMessages } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const location = useLocation();
+  const [messages, setMessages] = useState<IMessage[]>(initialMessages as IMessage[]);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const isLoading = fetcher.state !== "idle";
   
+  // fetcher의 이전 상태를 추적하기 위한 ref
+  const prevFetcherState = useRef(fetcher.state);
+
   // Freemium 정책 훅
   const freemium = useFreemiumPolicy(userProfile);
 
@@ -249,6 +260,12 @@ export default function ChatIdPage() {
   useEffect(() => {
     setMessages(initialMessages as IMessage[]);
   }, [initialMessages]);
+
+  // chatId가 변경될 때 모든 상태 초기화 (가장 중요한 부분!)
+  useEffect(() => {
+    console.log('🔄 [CHAT CLIENT] chatId 변경됨 - 모든 상태 초기화:', chatId);
+    setShowUpgradeModal(false); // 모달 닫기
+  }, [chatId]);
 
   const scrollToBottom = () => {
     if (highlightedMessageRef.current) {
@@ -314,14 +331,7 @@ export default function ChatIdPage() {
   }, [fetcher.data, messages, chatId]);
 
   const handleSendMessage = async (text: string) => {
-    // 🎯 Freemium 질문 제한 체크
-    const limitCheck = freemium.checkQuestionLimit();
-    
-    if (!limitCheck.canAsk) {
-      // 질문 제한 도달 시 업그레이드 모달 표시
-      setShowUpgradeModal(true);
-      return;
-    }
+    console.log('🎯 [CHAT CLIENT] handleSendMessage 호출됨:', text);
 
     const newUserMessage: IMessage = {
       id: String(Date.now()),
@@ -330,13 +340,55 @@ export default function ChatIdPage() {
     };
     setMessages((prev) => [...prev, newUserMessage]);
     
-    // 질문 횟수 증가
-    await freemium.incrementQuestionCount();
-    
+    // 서버 액션 호출
     const formData = new FormData();
     formData.append("message", text);
     fetcher.submit(formData, { method: "post" });
   };
+
+  // fetcher 응답 처리 (fetcher.state가 변경될 때만)
+  useEffect(() => {
+    // fetcher가 실행을 마치고 'idle' 상태로 돌아왔을 때만 데이터 처리
+    const isFetchCompleted = prevFetcherState.current !== 'idle' && fetcher.state === 'idle';
+
+    if (isFetchCompleted && fetcher.data) {
+      console.log('🎯 [CHAT CLIENT] Fetch 완료, 데이터 처리 시작:', fetcher.data);
+
+      if ("freemiumBlock" in fetcher.data && fetcher.data.freemiumBlock) {
+        const errorData = fetcher.data as any;
+        console.log('🚫 [CHAT CLIENT] 서버에서 제한 차단:', errorData.limitType);
+        
+        const lastMessage = messages[messages.length - 1];
+        if (lastMessage && lastMessage.role === "user") {
+          setMessages((prev) => prev.slice(0, -1));
+        }
+        setShowUpgradeModal(true);
+      } else if ("error" in fetcher.data && !("freemiumBlock" in fetcher.data)) {
+        console.error('❌ [CHAT CLIENT] 서버 오류:', (fetcher.data as any).error);
+        
+        const lastMessage = messages[messages.length - 1];
+        if (lastMessage && lastMessage.role === "user") {
+          setMessages((prev) => prev.slice(0, -1));
+        }
+        
+        const errorMessage: IMessage = {
+          id: String(Date.now()),
+          role: "assistant",
+          content: {
+            answer: (fetcher.data as any).error || "죄송합니다. 일시적인 오류가 발생했습니다.",
+            sources: []
+          },
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      } else if ('userCounts' in fetcher.data && (fetcher.data as any).userCounts) {
+        console.log('✅ [CHAT CLIENT] 로그인 사용자 질문 성공 - 카운트 업데이트:', (fetcher.data as any).userCounts);
+        freemium.updateUserCounts((fetcher.data as any).userCounts);
+      }
+    }
+
+    // 현재 fetcher 상태를 다음 렌더링을 위해 저장
+    prevFetcherState.current = fetcher.state;
+  }, [fetcher.state, fetcher.data, messages, freemium]);
 
   // 업그레이드 버튼 클릭 핸들러
   const handleUpgrade = () => {

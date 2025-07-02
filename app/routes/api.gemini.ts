@@ -214,8 +214,6 @@ function groupAndFormatContext(documents: any[]): string {
     return 'No specific context found.';
   }
 
-
-
   // 1. Group documents by reference, refType, and videoId for YouTube
   const groupedByReference: { [key: string]: any[] } = documents.reduce((acc, doc) => {
     if (doc.ref_type === 'youtube') {
@@ -421,6 +419,239 @@ async function getUserMembershipTier(userId: string): Promise<MembershipTier> {
   }
 }
 
+// Freemium 정책 상수 (클라이언트와 동일)
+const FREEMIUM_LIMITS = {
+  DAILY_FREE_LIMIT: 3,              // 하루 무료 질문 제한
+  WEEKLY_FREE_LIMIT: 10,            // 주간 무료 질문 제한  
+  MONTHLY_FREE_LIMIT: 30,           // 월간 무료 질문 제한
+} as const;
+
+/**
+ * 두 날짜가 같은 날인지 확인하는 함수
+ */
+function isSameDay(date1: Date, date2: Date): boolean {
+  return date1.getFullYear() === date2.getFullYear() &&
+         date1.getMonth() === date2.getMonth() &&
+         date1.getDate() === date2.getDate();
+}
+
+/**
+ * 두 날짜가 같은 주인지 확인하는 함수 (월요일 기준)
+ */
+function isSameWeek(date1: Date, date2: Date): boolean {
+  // 월요일을 주의 시작으로 설정하고 시간을 00:00:00으로 설정
+  const getMonday = (date: Date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // 일요일인 경우 -6, 그 외는 1
+    d.setDate(diff);
+    d.setHours(0, 0, 0, 0); // 시간을 00:00:00으로 설정
+    return d;
+  };
+  
+  const monday1 = getMonday(date1);
+  const monday2 = getMonday(date2);
+  
+  return monday1.getTime() === monday2.getTime();
+}
+
+/**
+ * 두 날짜가 같은 월인지 확인하는 함수
+ */
+function isSameMonth(date1: Date, date2: Date): boolean {
+  return date1.getFullYear() === date2.getFullYear() &&
+         date1.getMonth() === date2.getMonth();
+}
+
+/**
+ * 사용자의 질문 제한을 체크하고 필요시 초기화하는 함수
+ */
+async function checkAndResetUserLimits(userId: string): Promise<{
+  canAsk: boolean;
+  limitType: 'daily' | 'weekly' | 'monthly' | 'subscription' | 'none';
+  remainingQuestions: number;
+  userProfile: any;
+}> {
+  try {
+    console.log('🔍 [API Freemium] 사용자 제한 체크 시작:', userId);
+    
+    // 사용자 프로필 조회
+    const { rows } = await pool.query(
+      `SELECT id, membership_tier, daily_questions_used, weekly_questions_used, 
+              monthly_questions_used, last_question_at, created_at, updated_at 
+       FROM user_profiles WHERE id = $1`,
+      [userId]
+    );
+    
+    if (rows.length === 0) {
+      console.log('❌ [API Freemium] 사용자 프로필을 찾을 수 없음:', userId);
+      return {
+        canAsk: false,
+        limitType: 'none',
+        remainingQuestions: 0,
+        userProfile: null
+      };
+    }
+    
+    const userProfile = rows[0];
+    const now = new Date();
+    const lastQuestionAt = userProfile.last_question_at ? new Date(userProfile.last_question_at) : null;
+    
+    console.log('📊 [API Freemium] 사용자 정보:', {
+      tier: userProfile.membership_tier,
+      dailyUsed: userProfile.daily_questions_used,
+      weeklyUsed: userProfile.weekly_questions_used,
+      monthlyUsed: userProfile.monthly_questions_used,
+      lastQuestion: lastQuestionAt?.toISOString()
+    });
+    
+    // 구독 사용자는 무제한
+    if (userProfile.membership_tier === 'premium' || userProfile.membership_tier === 'expert') {
+      console.log('✅ [API Freemium] 구독 사용자 - 무제한 허용');
+      return {
+        canAsk: true,
+        limitType: 'subscription',
+        remainingQuestions: Infinity,
+        userProfile
+      };
+    }
+    
+    // 시간 기반 카운트 초기화 로직
+    let needsUpdate = false;
+    let dailyQuestionsUsed = userProfile.daily_questions_used;
+    let weeklyQuestionsUsed = userProfile.weekly_questions_used;
+    let monthlyQuestionsUsed = userProfile.monthly_questions_used;
+    
+    if (lastQuestionAt) {
+      // 하루가 지났으면 일일 카운트 초기화
+      if (!isSameDay(now, lastQuestionAt)) {
+        console.log('🔄 [API Freemium] 하루가 지나서 일일 카운트 초기화');
+        dailyQuestionsUsed = 0;
+        needsUpdate = true;
+      }
+      
+      // 주가 지났으면 주간 카운트 초기화
+      if (!isSameWeek(now, lastQuestionAt)) {
+        console.log('🔄 [API Freemium] 주가 지나서 주간 카운트 초기화');
+        weeklyQuestionsUsed = 0;
+        needsUpdate = true;
+      }
+      
+      // 월이 지났으면 월간 카운트 초기화
+      if (!isSameMonth(now, lastQuestionAt)) {
+        console.log('🔄 [API Freemium] 월이 지나서 월간 카운트 초기화');
+        monthlyQuestionsUsed = 0;
+        needsUpdate = true;
+      }
+    }
+    
+    // DB 업데이트가 필요한 경우
+    if (needsUpdate) {
+      console.log('💾 [API Freemium] 카운트 초기화 - DB 업데이트 실행');
+      await pool.query(
+        `UPDATE user_profiles 
+         SET daily_questions_used = $1, weekly_questions_used = $2, 
+             monthly_questions_used = $3, updated_at = NOW()
+         WHERE id = $4`,
+        [dailyQuestionsUsed, weeklyQuestionsUsed, monthlyQuestionsUsed, userId]
+      );
+      
+      // 업데이트된 값으로 userProfile 갱신
+      userProfile.daily_questions_used = dailyQuestionsUsed;
+      userProfile.weekly_questions_used = weeklyQuestionsUsed;
+      userProfile.monthly_questions_used = monthlyQuestionsUsed;
+    }
+    
+    // 제한 체크 (일/주/월 순서대로)
+    const dailyRemaining = FREEMIUM_LIMITS.DAILY_FREE_LIMIT - dailyQuestionsUsed;
+    const weeklyRemaining = FREEMIUM_LIMITS.WEEKLY_FREE_LIMIT - weeklyQuestionsUsed;
+    const monthlyRemaining = FREEMIUM_LIMITS.MONTHLY_FREE_LIMIT - monthlyQuestionsUsed;
+    
+    console.log('📈 [API Freemium] 제한 체크:', {
+      daily: `${dailyQuestionsUsed}/${FREEMIUM_LIMITS.DAILY_FREE_LIMIT} (남음: ${dailyRemaining})`,
+      weekly: `${weeklyQuestionsUsed}/${FREEMIUM_LIMITS.WEEKLY_FREE_LIMIT} (남음: ${weeklyRemaining})`,
+      monthly: `${monthlyQuestionsUsed}/${FREEMIUM_LIMITS.MONTHLY_FREE_LIMIT} (남음: ${monthlyRemaining})`
+    });
+    
+    // 일일 제한 확인
+    if (dailyRemaining <= 0) {
+      console.log('🚫 [API Freemium] 일일 제한 도달');
+      return {
+        canAsk: false,
+        limitType: 'daily',
+        remainingQuestions: 0,
+        userProfile
+      };
+    }
+    
+    // 주간 제한 확인
+    if (weeklyRemaining <= 0) {
+      console.log('🚫 [API Freemium] 주간 제한 도달');
+      return {
+        canAsk: false,
+        limitType: 'weekly',
+        remainingQuestions: 0,
+        userProfile
+      };
+    }
+    
+    // 월간 제한 확인
+    if (monthlyRemaining <= 0) {
+      console.log('🚫 [API Freemium] 월간 제한 도달');
+      return {
+        canAsk: false,
+        limitType: 'monthly',
+        remainingQuestions: 0,
+        userProfile
+      };
+    }
+    
+    // 모든 제한을 통과한 경우
+    const minRemaining = Math.min(dailyRemaining, weeklyRemaining, monthlyRemaining);
+    console.log('✅ [API Freemium] 질문 가능 - 남은 질문:', minRemaining);
+    
+    return {
+      canAsk: true,
+      limitType: 'none',
+      remainingQuestions: minRemaining,
+      userProfile
+    };
+    
+  } catch (error) {
+    console.error('❌ [API Freemium] 제한 체크 오류:', error);
+    return {
+      canAsk: false,
+      limitType: 'none',
+      remainingQuestions: 0,
+      userProfile: null
+    };
+  }
+}
+
+/**
+ * 사용자의 질문 카운트를 증가시키는 함수
+ */
+async function incrementUserQuestionCount(userId: string): Promise<void> {
+  try {
+    console.log('📈 [API Freemium] 질문 카운트 증가:', userId);
+    
+    await pool.query(
+      `UPDATE user_profiles 
+       SET daily_questions_used = daily_questions_used + 1,
+           weekly_questions_used = weekly_questions_used + 1,
+           monthly_questions_used = monthly_questions_used + 1,
+           last_question_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $1`,
+      [userId]
+    );
+    
+    console.log('✅ [API Freemium] 질문 카운트 증가 완료');
+  } catch (error) {
+    console.error('❌ [API Freemium] 질문 카운트 증가 오류:', error);
+  }
+}
+
 export const action = async (args: ActionFunctionArgs) => {
   const { request } = args;
   
@@ -435,7 +666,7 @@ export const action = async (args: ActionFunctionArgs) => {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
     
     const chatModel = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       systemInstruction: SYSTEM_PROMPT,
       generationConfig: {
         responseMimeType: 'application/json',
@@ -471,22 +702,50 @@ export const action = async (args: ActionFunctionArgs) => {
 
     mockLog("Mock mode is disabled - proceeding with real API call");
 
-    // 🎯 [API FREEMIUM] 게스트 사용자 차단
+    // 🎯 [API FREEMIUM] 질문 제한 체크
     console.log('🎯 [API FREEMIUM] /api/gemini 액션 호출됨 - userId:', userId);
     
-    if (!userId) {
-      console.log('🎯 [API FREEMIUM] 게스트 사용자 감지 - API 접근 차단');
-      return json({ 
-        error: "Guest access denied",
-        freemiumBlock: true,
-        message: "로그인 후 이용해주세요. 게스트는 제한된 기능만 사용 가능합니다." 
-      }, { status: 403 });
-    }
-
-    // 사용자 등급 조회 (로그인한 사용자만)
-    const userTier = await getUserMembershipTier(userId);
+    let allowedRefTypes;
+    let userTier: MembershipTier;
     
-    const allowedRefTypes = TIER_PERMISSIONS[userTier].allowedRefTypes;
+    if (!userId) {
+      // 게스트 사용자는 클라이언트에서 세션당 1개 제한을 체크했다고 가정
+      // API에서는 추가적인 보안 체크만 수행
+      console.log('🎯 [API FREEMIUM] 게스트 사용자 질문 - 클라이언트 제한 체크 통과 가정');
+      
+      // 게스트 사용자는 basic 권한으로 처리
+      userTier = 'basic';
+      allowedRefTypes = TIER_PERMISSIONS.basic.allowedRefTypes;
+    } else {
+      // 로그인 사용자 제한 체크 및 초기화
+      const limitCheck = await checkAndResetUserLimits(userId);
+      
+      if (!limitCheck.canAsk) {
+        console.log('🚫 [API FREEMIUM] 질문 제한 도달:', limitCheck.limitType);
+        
+        const messages = {
+          daily: "오늘의 무료 질문을 모두 사용하셨어요. 내일 다시 질문하시거나 프리미엄을 구독해보세요!",
+          weekly: "이번 주 무료 질문을 모두 사용하셨어요. 다음 주에 다시 질문하시거나 프리미엄을 구독해보세요!",
+          monthly: "이번 달 무료 질문을 모두 사용하셨어요. 다음 달에 다시 질문하시거나 프리미엄을 구독해보세요!",
+          subscription: "구독 사용자는 무제한입니다.", // 실제로는 이 경우가 발생하지 않음
+          none: "질문 제한에 도달했습니다. 프리미엄을 구독해보세요!"
+        };
+        
+        return json({ 
+          error: "Question limit reached",
+          freemiumBlock: true,
+          limitType: limitCheck.limitType,
+          remainingQuestions: limitCheck.remainingQuestions,
+          message: messages[limitCheck.limitType] || messages.none
+        }, { status: 429 }); // 429 Too Many Requests
+      }
+      
+      console.log('✅ [API FREEMIUM] 질문 가능 - 남은 질문:', limitCheck.remainingQuestions);
+      
+      // 사용자 등급 조회
+      userTier = await getUserMembershipTier(userId);
+      allowedRefTypes = TIER_PERMISSIONS[userTier].allowedRefTypes;
+    }
 
     // 임베딩 생성
     const embeddingResult = await embeddingModel.embedContent(message);
@@ -622,7 +881,41 @@ export const action = async (args: ActionFunctionArgs) => {
         structuredResponse.sources = groupDocumentsForSources(documents);
       }
       
-      return json({ reply: structuredResponse });
+      // 🎯 [API FREEMIUM] 질문 성공 시 카운트 증가 및 최신 정보 조회 (로그인 사용자만)
+      let updatedUserCounts = null;
+      if (userId) {
+        await incrementUserQuestionCount(userId);
+        console.log('📈 [API FREEMIUM] 질문 카운트 증가 완료');
+        
+        // 최신 사용자 카운트 정보 조회
+        try {
+          const { rows } = await pool.query(
+            `SELECT daily_questions_used, weekly_questions_used, monthly_questions_used 
+             FROM user_profiles WHERE id = $1`,
+            [userId]
+          );
+          
+          if (rows.length > 0) {
+            updatedUserCounts = {
+              daily: rows[0].daily_questions_used,
+              weekly: rows[0].weekly_questions_used,
+              monthly: rows[0].monthly_questions_used,
+            };
+            console.log('📊 [API FREEMIUM] 최신 사용자 카운트 조회 완료:', updatedUserCounts);
+          }
+        } catch (error) {
+          console.error('❌ [API FREEMIUM] 최신 카운트 조회 오류:', error);
+        }
+      }
+      
+      const response: any = { reply: structuredResponse };
+      
+      // 로그인 사용자의 경우 최신 카운트 정보 포함
+      if (updatedUserCounts) {
+        response.userCounts = updatedUserCounts;
+      }
+      
+      return json(response);
     } catch (parseError) {
       debugError("❌ [Parse Error] Failed to parse JSON response:", parseError);
       debugError("Raw AI response:", text);

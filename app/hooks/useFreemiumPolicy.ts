@@ -66,6 +66,11 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
     monthly: 0,
   });
   
+  // userQuestionCounts 변경 감지를 위한 useEffect
+  useEffect(() => {
+    console.log('🔄 [FreemiumPolicy] userQuestionCounts 상태 변경됨:', userQuestionCounts);
+  }, [userQuestionCounts]);
+  
   // 구독 상태
   const [subscriptionStatus, setSubscriptionStatus] = useState({
     isSubscribed: false,
@@ -114,33 +119,23 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
         console.log('🔄 [FreemiumPolicy] 로그인 사용자 초기화 완료 (DB)');
       } else {
         // 로그인 사용자지만, userProfile 데이터가 아직 없을 때
-        // (예: chat.$chatId.tsx 처럼 loader에서 profile을 받지 않는 경우)
-        // 일단 로딩 상태로 두고, 다른 useEffect에서 처리하도록 유도
-         console.log('🔄 [FreemiumPolicy] 로그인 사용자 - userProfile 대기 중');
+        // 일단 기본값으로 초기화하고 나중에 실제 데이터로 업데이트
+        console.log('🔄 [FreemiumPolicy] 로그인 사용자 - 기본값으로 초기화');
+        setUserQuestionCounts({
+          daily: 0,
+          weekly: 0,
+          monthly: 0,
+        });
+        
+        setSubscriptionStatus({
+          isSubscribed: false,
+          expiresAt: null,
+        });
+        
+        setIsInitialized(true);
+        setIsLoading(false);
+        console.log('🔄 [FreemiumPolicy] 로그인 사용자 기본 초기화 완료');
       }
-    }
-  }, [userId, isLoaded, isInitialized, userProfile]);
-
-  // 로그인 사용자 데이터 폴백/업데이트 (userProfile이 없을 때를 위한 처리)
-  useEffect(() => {
-    if (userId && isLoaded && isInitialized && !userProfile) {
-      console.log('🔄 [FreemiumPolicy] 로그인 사용자 데이터 로딩 (Fallback/Mock)');
-      // 이 경우는 loader에서 userProfile을 제공하지 않는 페이지(예: chat.$chatId)
-      // 또는 API를 통해 최신 정보를 가져와야 하는 경우입니다.
-      // 지금은 Mock 데이터로 채우지만, 나중에는 API 호출로 대체할 수 있습니다.
-      setUserQuestionCounts({
-        daily: 1,
-        weekly: 3,
-        monthly: 8,
-      });
-      
-      setSubscriptionStatus({
-        isSubscribed: false,
-        expiresAt: null,
-      });
-      
-      setIsLoading(false);
-      console.log('🔄 [FreemiumPolicy] 로그인 사용자 초기화 완료 (Mock)');
     }
   }, [userId, isLoaded, isInitialized, userProfile]);
 
@@ -280,6 +275,16 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
   };
 
   /**
+   * 외부에서 사용자 질문 카운트 업데이트 (서버 응답 기반)
+   */
+  const updateUserCounts = (counts: { daily: number; weekly: number; monthly: number }) => {
+    console.log('🔄 [FreemiumPolicy] 외부에서 사용자 카운트 업데이트:', userQuestionCounts, '->', counts);
+    setUserQuestionCounts(counts);
+    // 실시간 업데이트 시 로딩 상태를 false로 설정하여 UI 반영 보장
+    setIsLoading(false);
+  };
+
+  /**
    * 개발용: 게스트 상태 초기화 함수
    */
   const resetGuestState = () => {
@@ -325,6 +330,7 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
     checkQuestionLimit,
     incrementQuestionCount,
     updateSubscriptionStatus,
+    updateUserCounts,
     resetGuestState,
     getGuestStatus,
     LIMITS: FREEMIUM_LIMITS,

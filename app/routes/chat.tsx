@@ -180,8 +180,29 @@ export default function ChatPage() {
         credentials: 'include', // 쿠키 포함
         body: JSON.stringify({ message: text }),
       });
-      if (!response.ok) throw new Error("API call failed");
-      const { reply } = await response.json();
+      
+      const responseData = await response.json();
+      
+      // Freemium 제한 차단 응답 처리
+      if (!response.ok && responseData.freemiumBlock) {
+        console.log('🚫 [GUEST] AI API에서 제한 차단:', responseData.limitType);
+        
+        // UI에서 사용자 메시지 제거 (전송되지 않았으므로)
+        setMessages((prev) => prev.filter(msg => msg.id !== newUserMessage.id));
+        
+        // 업그레이드 모달 표시
+        setShowUpgradeModal(true);
+        setIsLoading(false);
+        return;
+      }
+      
+      // 기타 API 오류
+      if (!response.ok) {
+        throw new Error(`API call failed: ${responseData.error || 'Unknown error'}`);
+      }
+      
+      // 성공 응답 처리
+      const { reply } = responseData;
       const aiResponse: IMessage = {
         id: String(Date.now() + 1),
         role: "assistant",
@@ -512,11 +533,11 @@ export default function ChatPage() {
                 </Button>
               </>
             )}
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button className="touch-manipulation">시작하기</Button>
-              </SignInButton>
-            </SignedOut>
+          <SignedOut>
+            <SignInButton mode="modal">
+              <Button className="touch-manipulation">시작하기</Button>
+            </SignInButton>
+          </SignedOut>
           </div>
         </div>
       </header>
