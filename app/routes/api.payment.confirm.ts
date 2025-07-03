@@ -10,67 +10,49 @@ const processingPayments = new Set<string>();
 
 // 포트원 V2 API를 사용한 결제 검증
 const verifyPortOnePayment = async (paymentId: string) => {
-  const apiSecret = process.env.PORTONE_API_SECRET;
-  if (!apiSecret) {
-    throw new Error("PORTONE_API_SECRET is not configured");
-  }
-
-  console.log('🔍 [PortOne API] 결제 정보 조회 시작:', {
-    paymentId,
-    apiUrl: `https://api.portone.io/payments/${paymentId}`,
-    hasApiSecret: !!apiSecret
-  });
-
   try {
     const response = await fetch(`https://api.portone.io/payments/${paymentId}`, {
-      method: 'GET',
       headers: {
-        'Authorization': `PortOne ${apiSecret}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    console.log('📡 [PortOne API] 응답 상태:', {
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok
-    });
-
-    if (!response.ok) {
-      let errorData;
-      try {
-        errorData = await response.json();
-      } catch (parseError) {
-        const textResponse = await response.text();
-        console.error('❌ [PortOne API] JSON 파싱 실패:', {
-          status: response.status,
-          response: textResponse,
-          parseError: parseError
-        });
-        throw new Error(`PortOne API Error (HTTP ${response.status}): ${textResponse || response.statusText}`);
+        'Authorization': `PortOne ${process.env.PORTONE_API_SECRET}`,
+        'Content-Type': 'application/json'
       }
-      
-      console.error('❌ [PortOne API] 에러 응답:', {
+    });
+
+    let responseData;
+    const responseText = await response.text();
+    
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('❌ [PortOne API] JSON 파싱 실패:', {
         status: response.status,
-        errorData
+        responseText: responseText.substring(0, 200),
+        parseError
       });
-      
-      throw new Error(`PortOne API Error (HTTP ${response.status}): ${errorData.message || JSON.stringify(errorData)}`);
+      return null;
     }
 
-    const paymentData = await response.json();
-    console.log('✅ [PortOne API] 결제 정보 조회 성공:', {
-      paymentId: paymentData.id,
-      status: paymentData.status,
-      amount: paymentData.amount?.total,
-      customData: paymentData.customData
-    });
+    if (!response.ok) {
+      console.error('❌ [PortOne API] 에러 응답:', {
+        status: response.status,
+        error: responseData
+      });
+      return null;
+    }
 
-    return paymentData;
-    
+    // 개발 환경에서만 성공 로그 출력
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ [PortOne API] 결제 정보 조회 성공:', {
+        paymentId: responseData.id,
+        status: responseData.status
+      });
+    }
+
+    return responseData;
+
   } catch (error) {
     console.error('💥 [PortOne API] 네트워크 에러:', error);
-    throw error;
+    return null;
   }
 };
 
@@ -101,20 +83,14 @@ export const action = async (args: ActionFunctionArgs) => {
       } as IPaymentApiResponse, { status: 400 });
     }
 
-    console.log('🎯 [PortOne Payment Confirm] 결제 승인 요청:', {
-      userId,
-      paymentId,
-      orderId,
-      amount,
-      timestamp: new Date().toISOString()
-    });
+    // 개발 환경에서만 상세 로그 출력
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🎯 [Payment Confirm] 결제 승인 요청:', { paymentId, userId });
+    }
 
     // 🔒 동일한 paymentId에 대한 동시 처리 방지
     if (processingPayments.has(paymentId)) {
-      console.warn('⚠️ [PortOne Payment Confirm] 동일한 결제가 이미 처리 중 - 대기:', {
-        paymentId,
-        currentProcessing: Array.from(processingPayments)
-      });
+      console.warn('⚠️ [Payment Confirm] 동시 처리 방지 - 대기 중:', { paymentId });
       
       // 최대 5초 대기하면서 처리 완료를 기다림
       for (let i = 0; i < 50; i++) {
@@ -176,11 +152,9 @@ export const action = async (args: ActionFunctionArgs) => {
 
       // 🚫 이미 처리된 결제인지 확인
       if (existingPayment.status === 'confirmed') {
-        console.log('⚠️ [PortOne Payment Confirm] 이미 승인된 결제 - 성공 응답 반환:', {
-          paymentId: existingPayment.id,
-          status: existingPayment.status,
-          portonePaymentKey: existingPayment.portonePaymentKey
-        });
+        if (process.env.NODE_ENV === 'development') {
+          console.log('⚠️ [Payment Confirm] 이미 승인된 결제:', { paymentId: existingPayment.id });
+        }
         
         // 이미 성공한 결제의 경우 구독 정보도 함께 반환
         const [subscription] = await db
@@ -233,7 +207,7 @@ export const action = async (args: ActionFunctionArgs) => {
 
       // 금액 검증
       if (Number(existingPayment.amount) !== Number(amount)) {
-        console.error('❌ [PortOne Payment Confirm] 금액 불일치:', {
+        console.error('❌ [Payment Confirm] 금액 불일치:', {
           expected: existingPayment.amount,
           received: amount
         });
@@ -257,10 +231,7 @@ export const action = async (args: ActionFunctionArgs) => {
 
       // 결제 상태 검증
       if (payment.status !== 'PAID') {
-        console.error('❌ [PortOne Payment] 결제가 완료되지 않음:', {
-          paymentId,
-          status: payment.status
-        });
+        console.error('❌ [Payment] 결제 미완료:', { paymentId, status: payment.status });
         
         // 결제 실패인 경우에만 failed 상태로 변경
         if (payment.status === 'FAILED' || payment.status === 'CANCELLED') {
@@ -300,10 +271,7 @@ export const action = async (args: ActionFunctionArgs) => {
         try {
           customData = JSON.parse(payment.customData);
         } catch (error) {
-          console.error('❌ [PortOne Payment] customData JSON 파싱 실패:', {
-            customData: payment.customData,
-            error
-          });
+          console.error('❌ [Payment] customData 파싱 실패:', { error });
           return json({
             success: false,
             error: "Invalid payment custom data format"
@@ -313,18 +281,11 @@ export const action = async (args: ActionFunctionArgs) => {
         customData = payment.customData as Record<string, any>;
       }
       
-      console.log('🔍 [PortOne Payment] 상품 정보 비교:', {
-        'PortOne customData': customData,
-        'PortOne planId': customData?.planId,
-        'DB planId': existingPayment.planId,
-        'Match': customData?.planId === existingPayment.planId
-      });
-      
+      // 상품 정보 검증
       if (customData?.planId !== existingPayment.planId) {
-        console.error('❌ [PortOne Payment] 상품 정보 불일치:', {
+        console.error('❌ [Payment] 상품 정보 불일치:', {
           expected: existingPayment.planId,
-          received: customData?.planId,
-          fullCustomData: customData
+          received: customData?.planId
         });
         
         return json({
@@ -333,13 +294,10 @@ export const action = async (args: ActionFunctionArgs) => {
         } as IPaymentApiResponse, { status: 400 });
       }
 
-      console.log('✅ [PortOne Payment Success]', {
-        paymentId: payment.id,
-        orderId: customData?.orderId,
-        status: payment.status,
-        method: payment.method?.type,
-        totalAmount: payment.amount.total
-      });
+      // 개발 환경에서만 성공 로그 출력
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ [Payment Success]', { paymentId: payment.id, amount: payment.amount.total });
+      }
 
       // 구독 계획 조회
       const [plan] = await db
@@ -405,13 +363,12 @@ export const action = async (args: ActionFunctionArgs) => {
         })
         .where(eq(userProfiles.id, userId));
 
-      console.log('🎉 [PortOne Payment Success] 결제 완료 및 구독 활성화:', {
+      // 성공적인 구독 활성화 (운영 환경에서도 출력)
+      console.log('🎉 [Payment Success] 구독 활성화:', {
         userId,
         subscriptionId,
         planName: plan.name,
-        membershipTier: plan.membershipTier,
-        startDate: now.toISOString(),
-        endDate: endDate.toISOString()
+        membershipTier: plan.membershipTier
       });
 
       return json({ 
@@ -430,7 +387,7 @@ export const action = async (args: ActionFunctionArgs) => {
       } as IPaymentApiResponse);
 
     } catch (error) {
-      console.error("❌ [PortOne Payment Confirm Error]", error);
+      console.error("❌ [Payment Confirm Error]", error);
       return json({ 
         success: false, 
         error: error instanceof Error ? error.message : "Failed to confirm payment" 
@@ -438,15 +395,14 @@ export const action = async (args: ActionFunctionArgs) => {
     } finally {
       // 🔓 처리 완료 후 락 해제
       processingPayments.delete(paymentId);
-      console.log('🔓 [PortOne Payment Confirm] 락 해제:', {
-        paymentId,
-        remainingProcessing: Array.from(processingPayments)
-      });
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔓 [Payment Confirm] 락 해제:', { paymentId });
+      }
     }
 
   } catch (error) {
     // 🚨 최상위 에러 처리 (인증, 파라미터 검증 등)
-    console.error("❌ [PortOne Payment Confirm Critical Error]", error);
+    console.error("❌ [Payment Confirm Critical Error]", error);
     return json({ 
       success: false, 
       error: "Critical error during payment confirmation" 

@@ -66,10 +66,8 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
     monthly: 0,
   });
   
-  // userQuestionCounts 변경 감지를 위한 useEffect
-  useEffect(() => {
-    console.log('🔄 [FreemiumPolicy] userQuestionCounts 상태 변경됨:', userQuestionCounts);
-  }, [userQuestionCounts]);
+  // userQuestionCounts 변경 감지를 위한 useEffect (개발 환경에서만 로그 출력)
+  // userQuestionCounts 변경 감지 (로그 제거됨)
   
   // 구독 상태
   const [subscriptionStatus, setSubscriptionStatus] = useState({
@@ -85,24 +83,16 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
 
   // 게스트 모드 질문 수 localStorage에서 로드 (초기화 시 한 번만)
   useEffect(() => {
-    console.log('🔄 [FreemiumPolicy] Clerk 초기화 체크:', { userId, isLoaded });
-    
     if (isLoaded && !isInitialized) {
       if (!userId) {
         // 게스트 사용자
-        console.log('🔄 [FreemiumPolicy] 게스트 사용자 localStorage 초기화');
         const stored = localStorage.getItem('guestQuestionCount');
         const initialCount = stored ? parseInt(stored, 10) : 0;
-        console.log('🔄 [FreemiumPolicy] localStorage 값:', stored, '-> 초기화된 카운트:', initialCount);
         setGuestQuestionsUsed(initialCount);
         setIsInitialized(true);
         setIsLoading(false);
-        console.log('🔄 [FreemiumPolicy] 게스트 초기화 완료');
       } else if (userProfile) {
         // 로그인 사용자 (userProfile 데이터가 있을 때)
-        console.log('🔄 [FreemiumPolicy] DB 데이터로 로그인 사용자 초기화', userProfile);
-        
-        // TODO: 시간대를 고려하여 카운트 초기화 로직 추가
         setUserQuestionCounts({
           daily: userProfile.dailyQuestionsUsed,
           weekly: userProfile.weeklyQuestionsUsed,
@@ -110,17 +100,14 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
         });
 
         setSubscriptionStatus({
-          isSubscribed: userProfile.membershipTier === 'premium', // 'premium' 티어는 구독으로 간주
+          isSubscribed: userProfile.membershipTier === 'premium',
           expiresAt: null, // TODO: 구독 만료일 필드 추가 시 반영
         });
         
         setIsInitialized(true);
         setIsLoading(false);
-        console.log('🔄 [FreemiumPolicy] 로그인 사용자 초기화 완료 (DB)');
       } else {
         // 로그인 사용자지만, userProfile 데이터가 아직 없을 때
-        // 일단 기본값으로 초기화하고 나중에 실제 데이터로 업데이트
-        console.log('🔄 [FreemiumPolicy] 로그인 사용자 - 기본값으로 초기화');
         setUserQuestionCounts({
           daily: 0,
           weekly: 0,
@@ -134,7 +121,6 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
         
         setIsInitialized(true);
         setIsLoading(false);
-        console.log('🔄 [FreemiumPolicy] 로그인 사용자 기본 초기화 완료');
       }
     }
   }, [userId, isLoaded, isInitialized, userProfile]);
@@ -143,19 +129,8 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
    * 질문 가능 여부를 확인하는 함수
    */
   const checkQuestionLimit = (): IQuestionLimitCheck => {
-    console.log('🔍 [FreemiumPolicy] checkQuestionLimit 호출됨');
-    console.log('🔍 [FreemiumPolicy] 현재 상태:', { 
-      isLoading, 
-      isLoaded, 
-      userId, 
-      guestQuestionsUsed, 
-      userQuestionCounts,
-      subscriptionStatus 
-    });
-    
     // 로딩 중이면 질문 불가
     if (isLoading || !isLoaded) {
-      console.log('🔍 [FreemiumPolicy] 로딩 중 - 질문 불가');
       return {
         canAsk: false,
         limitType: 'none',
@@ -165,7 +140,6 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
 
     // 구독 사용자는 무제한
     if (subscriptionStatus.isSubscribed) {
-      console.log('🔍 [FreemiumPolicy] 구독 사용자 - 무제한');
       return {
         canAsk: true,
         limitType: 'none',
@@ -176,7 +150,6 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
     // 게스트 사용자 제한 체크
     if (!userId) {
       const remaining = FREEMIUM_LIMITS.GUEST_SESSION_LIMIT - guestQuestionsUsed;
-      console.log('🔍 [FreemiumPolicy] 게스트 사용자:', { guestQuestionsUsed, remaining });
       return {
         canAsk: remaining > 0,
         limitType: 'guest',
@@ -189,15 +162,8 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
     const weeklyRemaining = FREEMIUM_LIMITS.WEEKLY_FREE_LIMIT - userQuestionCounts.weekly;
     const monthlyRemaining = FREEMIUM_LIMITS.MONTHLY_FREE_LIMIT - userQuestionCounts.monthly;
 
-    console.log('🔍 [FreemiumPolicy] 로그인 사용자 제한 체크:', {
-      daily: `${userQuestionCounts.daily}/${FREEMIUM_LIMITS.DAILY_FREE_LIMIT} (남음: ${dailyRemaining})`,
-      weekly: `${userQuestionCounts.weekly}/${FREEMIUM_LIMITS.WEEKLY_FREE_LIMIT} (남음: ${weeklyRemaining})`,
-      monthly: `${userQuestionCounts.monthly}/${FREEMIUM_LIMITS.MONTHLY_FREE_LIMIT} (남음: ${monthlyRemaining})`
-    });
-
     // 가장 제한적인 조건을 찾기
     if (dailyRemaining <= 0) {
-      console.log('🔍 [FreemiumPolicy] 일일 제한 도달');
       return {
         canAsk: false,
         limitType: 'daily',
@@ -207,7 +173,6 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
     }
     
     if (weeklyRemaining <= 0) {
-      console.log('🔍 [FreemiumPolicy] 주간 제한 도달');
       return {
         canAsk: false,
         limitType: 'weekly', 
@@ -217,7 +182,6 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
     }
     
     if (monthlyRemaining <= 0) {
-      console.log('🔍 [FreemiumPolicy] 월간 제한 도달');
       return {
         canAsk: false,
         limitType: 'monthly',
@@ -228,7 +192,6 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
 
     // 가장 작은 남은 횟수 반환
     const minRemaining = Math.min(dailyRemaining, weeklyRemaining, monthlyRemaining);
-    console.log('🔍 [FreemiumPolicy] 질문 가능 - 남은 횟수:', minRemaining);
     
     return {
       canAsk: true,
@@ -241,14 +204,9 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
    * 질문 후 카운트 증가
    */
   const incrementQuestionCount = async () => {
-    console.log('🔄 [FreemiumPolicy] incrementQuestionCount 호출됨');
-    console.log('🔄 [FreemiumPolicy] 현재 userId:', userId);
-    console.log('🔄 [FreemiumPolicy] 현재 상태:', { guestQuestionsUsed, userQuestionCounts });
-    
     if (!userId) {
       // 게스트 사용자: localStorage 업데이트
       const newCount = guestQuestionsUsed + 1;
-      console.log('🔄 [FreemiumPolicy] 게스트 카운트 증가:', guestQuestionsUsed, '->', newCount);
       setGuestQuestionsUsed(newCount);
       localStorage.setItem('guestQuestionCount', newCount.toString());
     } else {
@@ -259,7 +217,6 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
         weekly: userQuestionCounts.weekly + 1,
         monthly: userQuestionCounts.monthly + 1,
       };
-      console.log('🔄 [FreemiumPolicy] 로그인 사용자 카운트 증가:', userQuestionCounts, '->', newCounts);
       setUserQuestionCounts(newCounts);
     }
   };
@@ -278,7 +235,6 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
    * 외부에서 사용자 질문 카운트 업데이트 (서버 응답 기반)
    */
   const updateUserCounts = (counts: { daily: number; weekly: number; monthly: number }) => {
-    console.log('🔄 [FreemiumPolicy] 외부에서 사용자 카운트 업데이트:', userQuestionCounts, '->', counts);
     setUserQuestionCounts(counts);
     // 실시간 업데이트 시 로딩 상태를 false로 설정하여 UI 반영 보장
     setIsLoading(false);
@@ -288,10 +244,8 @@ export function useFreemiumPolicy(userProfile?: UserProfile) {
    * 개발용: 게스트 상태 초기화 함수
    */
   const resetGuestState = () => {
-    console.log('🔄 [FreemiumPolicy] 게스트 상태 초기화');
     localStorage.removeItem('guestQuestionCount');
     setGuestQuestionsUsed(0);
-    console.log('🔄 [FreemiumPolicy] localStorage 제거 및 상태 리셋 완료');
   };
 
   /**

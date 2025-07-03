@@ -72,12 +72,13 @@ export function PremiumUpgradeModal({
         // 첫 번째 플랜의 가격만 사용
         setPrice(result.data[0].price);
       } else {
-        console.warn('⚠️ [Price Load] 가격 로드 실패, 기본값 사용:', 2900);
-        // 에러는 표시하지 않고 기본값 유지
+        // 가격 로드 실패 시 기본값 유지
       }
     } catch (error) {
-      console.error('❌ [Price Load Error]', error);
-      // 에러는 표시하지 않고 기본값 유지
+      // 개발 환경에서만 에러 로그 출력
+      if (process.env.NODE_ENV === 'development') {
+        console.error('❌ [Price Load Error]', error);
+      }
     } finally {
       setIsLoadingPrice(false);
     }
@@ -94,11 +95,10 @@ export function PremiumUpgradeModal({
     setError(null);
 
     try {
-      console.log('🎯 [Payment Start] 결제 시작:', {
-        planId: PLAN_ID,
-        planName: PLAN_NAME,
-        amount: price
-      });
+              // 개발 환경에서만 상세 로그 출력
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🎯 [Payment Start] 결제 시작:', { planName: PLAN_NAME, amount: price });
+        }
 
       // 1. 결제 요청 생성
       const createResponse = await fetch('/api/payment/create', {
@@ -119,27 +119,19 @@ export function PremiumUpgradeModal({
         throw new Error(createResult.error || "결제 요청 생성에 실패했습니다.");
       }
 
-      console.log('✅ [Payment Request Created]', createResult.data);
-
       // 🎯 프리미엄 모달을 먼저 닫기 (포트원 모달과의 충돌 방지)
-      console.log('🔽 [Payment] 프리미엄 모달 닫는 중...');
       onClose();
 
       // 모달 닫힘 애니메이션을 위한 약간의 지연
       await new Promise(resolve => setTimeout(resolve, 300));
 
       // 2. 포트원 브라우저 SDK를 사용한 결제 요청
-      console.log('💳 [Payment] 포트원 SDK 로딩 중...');
-      
-      // 포트원 SDK 동적 로드
       const PortOne = await import('@portone/browser-sdk/v2');
       
-      console.log('🎯 [Payment] 포트원 결제 요청:', createResult.data);
-
-      // 포트원 SDK 파라미터 로깅
+      // 포트원 SDK 파라미터
       const paymentParams = {
         storeId: createResult.data.storeId,
-        channelKey: createResult.data.channelKey, // channelKey 추가
+        channelKey: createResult.data.channelKey,
         paymentId: createResult.data.paymentId,
         orderName: createResult.data.orderName,
         totalAmount: createResult.data.totalAmount,
@@ -151,11 +143,7 @@ export function PremiumUpgradeModal({
         customData: createResult.data.customData,
       };
 
-      console.log('📋 [PortOne SDK] 전달할 파라미터:', paymentParams);
-
       const response = await PortOne.requestPayment(paymentParams);
-
-      console.log('📋 [PortOne Response]', response);
 
       if (!response) {
         throw new Error('포트원 결제 응답을 받지 못했습니다.');
@@ -163,14 +151,9 @@ export function PremiumUpgradeModal({
 
       if (response.code != null) {
         // 결제 실패 또는 취소
-        console.warn('⚠️ [Payment Failed/Cancelled]', {
-          code: response.code,
-          message: response.message
-        });
-        
         if (response.code === 'USER_CANCEL') {
-          // 사용자 취소의 경우 특별한 알림 없이 조용히 처리
-          console.log('ℹ️ [Payment] 사용자가 결제를 취소했습니다.');
+          // 사용자 취소의 경우 조용히 처리
+          return;
         } else {
           alert(`결제 실패: ${response.message || '알 수 없는 오류'}`);
         }
@@ -182,9 +165,6 @@ export function PremiumUpgradeModal({
       }
 
       // 결제 성공 - 성공 페이지로 바로 리디렉션 (결제 승인은 success 페이지에서 처리)
-      console.log('✅ [Payment Success] 성공 페이지로 리디렉션:', response.paymentId);
-      
-      // 성공 페이지로 이동 (결제 승인은 success 페이지에서 단일하게 처리)
       window.location.href = `/payment/success?paymentId=${response.paymentId}&orderId=${createResult.data.customData.orderId}&amount=${createResult.data.totalAmount}`;
 
     } catch (error: any) {

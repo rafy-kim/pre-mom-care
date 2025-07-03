@@ -114,16 +114,15 @@ export const action = async (args: ActionFunctionArgs) => {
       noticeUrls: [`${baseUrl}/api/payment/webhook`],
     };
 
-    console.log('🎯 [PortOne Payment Create] 결제 요청 생성:', {
-      userId,
-      planId: plan.id,
-      planName: plan.name,
-      amount: plan.price,
-      paymentId,
-      orderId,
-      storeId,
-      channelKey: channelKey.substring(0, 20) + '...' // 보안을 위해 일부만 로깅
-    });
+    // 개발 환경에서만 상세 로그 출력
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🎯 [Payment Create] 결제 요청 생성:', {
+        userId,
+        planName: plan.name,
+        amount: plan.price,
+        paymentId
+      });
+    }
 
     return json({ 
       success: true, 
@@ -141,7 +140,7 @@ export const action = async (args: ActionFunctionArgs) => {
     } as IPaymentApiResponse);
 
   } catch (error) {
-    console.error("❌ [PortOne Payment Create Error]", error);
+    console.error("❌ [Payment Create Error]", error);
     return json({ 
       success: false, 
       error: error instanceof Error ? error.message : "Failed to create payment request" 

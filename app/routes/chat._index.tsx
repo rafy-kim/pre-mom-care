@@ -26,7 +26,10 @@ type ContextType = {
 export const action = async (args: ActionFunctionArgs) => {
   const { userId } = await getAuth(args);
   
-  console.log('🎯 [SERVER ACTION] 새 대화 시작 액션 호출됨 - userId:', userId);
+      // 개발 환경에서만 로그 출력
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🎯 [Server Action] 새 대화 시작:', userId);
+    }
 
   const formData = await args.request.formData();
   const userMessageContent = formData.get("message") as string;
@@ -85,7 +88,10 @@ export const action = async (args: ActionFunctionArgs) => {
 
   // 5. AI API 호출하여 질문 제한 체크 및 응답 생성
   try {
-    console.log('🎯 [SERVER ACTION] AI API 호출 시작');
+          // 개발 환경에서만 AI API 호출 로그 출력
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🎯 [Server Action] AI API 호출 시작');
+      }
     const geminiResponse = await fetch(
       new URL("/api/gemini", args.request.url),
       {
@@ -110,7 +116,7 @@ export const action = async (args: ActionFunctionArgs) => {
 
     // API에서 Freemium 제한 차단 응답이 온 경우
     if (!geminiResponse.ok && responseData.freemiumBlock) {
-      console.log('🚫 [SERVER ACTION] AI API에서 제한 차단:', responseData.limitType);
+              console.log('🚫 [Server Action] 질문 제한 차단:', responseData.limitType);
       
       // 로그인 사용자의 경우 생성된 대화방/메시지 롤백
       if (userId) {
@@ -119,7 +125,9 @@ export const action = async (args: ActionFunctionArgs) => {
             await tx.delete(messages).where(eq(messages.chatId, newChatId));
             await tx.delete(chats).where(eq(chats.id, newChatId));
           });
-          console.log('🔄 [SERVER ACTION] 대화방 롤백 완료');
+          if (process.env.NODE_ENV === 'development') {
+          console.log('🔄 [Server Action] 대화방 롤백 완료');
+        }
         } catch (rollbackError) {
           console.error('❌ [SERVER ACTION] 대화방 롤백 실패:', rollbackError);
         }
@@ -149,7 +157,9 @@ export const action = async (args: ActionFunctionArgs) => {
         role: aiMessage.role,
         content: aiMessage.content as any,
       });
-      console.log('✅ [SERVER ACTION] AI 응답 저장 완료');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ [Server Action] AI 응답 저장 완료');
+      }
     }
 
   } catch (error) {
@@ -162,7 +172,9 @@ export const action = async (args: ActionFunctionArgs) => {
           await tx.delete(messages).where(eq(messages.chatId, newChatId));
           await tx.delete(chats).where(eq(chats.id, newChatId));
         });
-        console.log('🔄 [SERVER ACTION] 오류로 인한 대화방 롤백 완료');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔄 [Server Action] 오류로 인한 대화방 롤백 완료');
+        }
       } catch (rollbackError) {
         console.error('❌ [SERVER ACTION] 롤백 실패:', rollbackError);
       }

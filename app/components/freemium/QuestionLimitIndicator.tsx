@@ -34,22 +34,7 @@ export function QuestionLimitIndicator({
   monthlyQuestionsUsed,
 }: IQuestionLimitIndicatorProps) {
 
-  // 디버깅 로그
-  console.log('🎨 [QuestionLimitIndicator] 렌더링됨 (Props):', {
-    compact,
-    isLoading,
-    isGuest,
-    isSubscribed,
-    remainingQuestions,
-    limitType,
-    guestQuestionsUsed,
-    dailyQuestionsUsed,
-    weeklyQuestionsUsed,
-    monthlyQuestionsUsed
-  });
-
   if (isLoading) {
-    console.log('🎨 [QuestionLimitIndicator] 로딩 상태 - 스켈레톤 표시');
     return (
       <div className="flex items-center gap-2">
         <div className="h-4 w-16 bg-gray-200 rounded animate-pulse" />

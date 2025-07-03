@@ -32,10 +32,6 @@ export default function PaymentSuccess() {
 
       // 🚫 중복 요청 방지: 이미 처리 중이거나 완료된 경우 스킵
       if (isConfirmingRef.current || hasConfirmedRef.current) {
-        console.log('⚠️ [Payment Success Page] 중복 요청 방지 - 스킵:', {
-          isConfirming: isConfirmingRef.current,
-          hasConfirmed: hasConfirmedRef.current
-        });
         return;
       }
 
@@ -43,12 +39,10 @@ export default function PaymentSuccess() {
       isConfirmingRef.current = true;
 
       try {
-        console.log('🎯 [Payment Success Page] 결제 승인 요청:', {
-          paymentId,
-          orderId,
-          amount,
-          timestamp: new Date().toISOString()
-        });
+                  // 개발 환경에서만 상세 로그 출력
+          if (process.env.NODE_ENV === 'development') {
+            console.log('🎯 [Payment Success] 결제 승인 요청:', { paymentId, amount });
+          }
 
         const response = await fetch('/api/payment/confirm', {
           method: 'POST',
@@ -70,12 +64,6 @@ export default function PaymentSuccess() {
           
           setPaymentDetails(result.data);
           setIsSuccess(true);
-          
-          if (result.data.alreadyProcessed) {
-            console.log('ℹ️ [Payment Success] 이미 처리된 결제 - 기존 구독 정보 표시:', result.data);
-          } else {
-            console.log('✅ [Payment Success] 결제 승인 완료:', result.data);
-          }
         } else {
           setError(result.error || "결제 승인에 실패했습니다.");
           console.error('❌ [Payment Error]', result.error);

@@ -151,7 +151,6 @@ export const action = async (args: ActionFunctionArgs) => {
 
   // 2. Call AI API with Freemium check
   try {
-    console.log('🎯 [CHAT ACTION] AI API 호출 시작');
     const geminiResponse = await fetch(
       new URL("/api/gemini", args.request.url),
       {
@@ -177,8 +176,6 @@ export const action = async (args: ActionFunctionArgs) => {
 
     // Freemium 제한 차단 응답 처리
     if (!geminiResponse.ok && responseData.freemiumBlock) {
-      console.log('🚫 [CHAT ACTION] AI API에서 제한 차단:', responseData.limitType);
-      
       // 저장된 사용자 메시지 롤백
       await db.delete(messages).where(eq(messages.id, userMessage.id));
       
@@ -216,13 +213,10 @@ export const action = async (args: ActionFunctionArgs) => {
       content: aiMessage.content as any,
     });
 
-    console.log('✅ [CHAT ACTION] AI 응답 저장 완료');
-    
     // 응답에 userCounts 포함 (있는 경우)
     const response: any = { ok: true, message: aiMessage };
     if (userCounts) {
       response.userCounts = userCounts;
-      console.log('📊 [CHAT ACTION] 최신 사용자 카운트 포함:', userCounts);
     }
     
     return json(response);
@@ -263,7 +257,6 @@ export default function ChatIdPage() {
 
   // chatId가 변경될 때 모든 상태 초기화 (가장 중요한 부분!)
   useEffect(() => {
-    console.log('🔄 [CHAT CLIENT] chatId 변경됨 - 모든 상태 초기화:', chatId);
     setShowUpgradeModal(false); // 모달 닫기
   }, [chatId]);
 
@@ -331,8 +324,6 @@ export default function ChatIdPage() {
   }, [fetcher.data, messages, chatId]);
 
   const handleSendMessage = async (text: string) => {
-    console.log('🎯 [CHAT CLIENT] handleSendMessage 호출됨:', text);
-
     const newUserMessage: IMessage = {
       id: String(Date.now()),
       role: "user",
@@ -352,11 +343,8 @@ export default function ChatIdPage() {
     const isFetchCompleted = prevFetcherState.current !== 'idle' && fetcher.state === 'idle';
 
     if (isFetchCompleted && fetcher.data) {
-      console.log('🎯 [CHAT CLIENT] Fetch 완료, 데이터 처리 시작:', fetcher.data);
-
       if ("freemiumBlock" in fetcher.data && fetcher.data.freemiumBlock) {
         const errorData = fetcher.data as any;
-        console.log('🚫 [CHAT CLIENT] 서버에서 제한 차단:', errorData.limitType);
         
         const lastMessage = messages[messages.length - 1];
         if (lastMessage && lastMessage.role === "user") {
@@ -381,7 +369,6 @@ export default function ChatIdPage() {
         };
         setMessages((prev) => [...prev, errorMessage]);
       } else if ('userCounts' in fetcher.data && (fetcher.data as any).userCounts) {
-        console.log('✅ [CHAT CLIENT] 로그인 사용자 질문 성공 - 카운트 업데이트:', (fetcher.data as any).userCounts);
         freemium.updateUserCounts((fetcher.data as any).userCounts);
       }
     }

@@ -23,35 +23,35 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
   }, [isLoading]);
 
   const handleSubmit = (e?: React.FormEvent) => {
-    console.log('📝 [ChatInput] handleSubmit 호출됨:', message);
+    // console.log('📝 [ChatInput] handleSubmit 호출됨:', message);
     e?.preventDefault();
-    console.log('📝 [ChatInput] preventDefault 완료');
+    // console.log('📝 [ChatInput] preventDefault 완료');
     if (!message.trim() || isLoading) {
-      console.log('📝 [ChatInput] 메시지 비어있거나 로딩 중 - 리턴');
+      // console.log('📝 [ChatInput] 메시지 비어있거나 로딩 중 - 리턴');
       return;
     }
-    console.log('📝 [ChatInput] onSendMessage 호출 시작:', message);
+    // console.log('📝 [ChatInput] onSendMessage 호출 시작:', message);
     onSendMessage(message);
-    console.log('📝 [ChatInput] onSendMessage 호출 완료');
+    // console.log('📝 [ChatInput] onSendMessage 호출 완료');
     setMessage("");
     textareaRef.current?.focus();
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
-      console.log('⌨️ [ChatInput] Enter 키 처리 - isComposing:', isComposing);
+      // console.log('⌨️ [ChatInput] Enter 키 처리 - isComposing:', isComposing);
       e.preventDefault();
       handleSubmit();
     }
   };
 
   const handleCompositionStart = (e: CompositionEvent<HTMLTextAreaElement>) => {
-    console.log('🔤 [ChatInput] Composition 시작');
+    // console.log('🔤 [ChatInput] Composition 시작');
     setIsComposing(true);
   };
 
   const handleCompositionEnd = (e: CompositionEvent<HTMLTextAreaElement>) => {
-    console.log('🔤 [ChatInput] Composition 종료');
+    // console.log('🔤 [ChatInput] Composition 종료');
     setIsComposing(false);
   };
 

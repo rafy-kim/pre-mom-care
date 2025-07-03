@@ -136,20 +136,14 @@ export default function ChatPage() {
   }, [messages, userProfile]);
 
   const handleGuestSendMessage = async (text: string) => {
-    console.log('🎯 [GUEST] handleGuestSendMessage 호출됨:', text);
-    
     // 🎯 Freemium 질문 제한 체크
     const limitCheck = freemium.checkQuestionLimit();
-    console.log('🎯 [GUEST] 제한 체크 결과:', limitCheck);
     
     if (!limitCheck.canAsk) {
-      console.log('🎯 [GUEST] 질문 제한 도달 - 모달 표시');
       // 질문 제한 도달 시 업그레이드 모달 표시
       setShowUpgradeModal(true);
       return;
     }
-
-    console.log('🎯 [GUEST] 질문 허용 - 메시지 전송');
     const newUserMessage: IMessage = {
       id: String(Date.now()),
       role: "user",
@@ -159,9 +153,7 @@ export default function ChatPage() {
     setIsLoading(true);
 
     // 질문 횟수 증가
-    console.log('🎯 [GUEST] 질문 카운트 증가 시작');
     await freemium.incrementQuestionCount();
-    console.log('🎯 [GUEST] 질문 카운트 증가 완료');
 
     try {
       // Clerk 토큰을 포함하여 API 호출
@@ -185,8 +177,6 @@ export default function ChatPage() {
       
       // Freemium 제한 차단 응답 처리
       if (!response.ok && responseData.freemiumBlock) {
-        console.log('🚫 [GUEST] AI API에서 제한 차단:', responseData.limitType);
-        
         // UI에서 사용자 메시지 제거 (전송되지 않았으므로)
         setMessages((prev) => prev.filter(msg => msg.id !== newUserMessage.id));
         
@@ -227,7 +217,6 @@ export default function ChatPage() {
 
   // 로그인 버튼 클릭 핸들러 (게스트 모드용)
   const handleGuestLogin = () => {
-    console.log("게스트 로그인 버튼 클릭됨");
     setShowUpgradeModal(false); // 프리미엄 모달 먼저 닫기
     setShowLoginModal(true); // 로그인 모달 열기
   };
@@ -506,7 +495,6 @@ export default function ChatPage() {
                   variant="outline"
                   onClick={() => {
                     const status = freemium.getGuestStatus();
-                    console.log('🔍 [DEBUG] 게스트 상태:', status);
                     alert(`게스트 상태:\n${JSON.stringify(status, null, 2)}`);
                   }}
                   className="text-xs hidden sm:block"
@@ -518,7 +506,6 @@ export default function ChatPage() {
                   variant="outline"
                   onClick={() => {
                     freemium.resetGuestState();
-                    console.log('🔄 [DEBUG] 게스트 상태 초기화됨');
                     alert('게스트 상태가 초기화되었습니다.');
                   }}
                   className="text-xs hidden sm:block"
