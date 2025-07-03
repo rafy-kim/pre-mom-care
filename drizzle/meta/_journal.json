@@ -5,22 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1751285552101,
-      "tag": "0000_majestic_red_wolf",
+      "when": 1751531160470,
+      "tag": "0000_nice_korvac",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1751374073107,
-      "tag": "0001_colossal_harpoon",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1751434262243,
-      "tag": "0002_rare_morg",
+      "when": 1751532798977,
+      "tag": "0001_flippant_magdalene",
       "breakpoints": true
     }
   ]

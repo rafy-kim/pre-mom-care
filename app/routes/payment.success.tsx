@@ -17,15 +17,14 @@ export default function PaymentSuccess() {
   const isConfirmingRef = useRef(false);
   const hasConfirmedRef = useRef(false);
 
-  const paymentKey = searchParams.get("paymentKey");
+  const paymentId = searchParams.get("paymentId");
   const orderId = searchParams.get("orderId");
   const amount = searchParams.get("amount");
-  const paymentId = searchParams.get("paymentId");
 
   useEffect(() => {
     const confirmPayment = async () => {
       // 🚫 필수 정보 검증
-      if (!paymentKey || !orderId || !amount) {
+      if (!paymentId || !orderId || !amount) {
         setError("필수 결제 정보가 누락되었습니다.");
         setIsProcessing(false);
         return;
@@ -45,7 +44,7 @@ export default function PaymentSuccess() {
 
       try {
         console.log('🎯 [Payment Success Page] 결제 승인 요청:', {
-          paymentKey,
+          paymentId,
           orderId,
           amount,
           timestamp: new Date().toISOString()
@@ -57,7 +56,7 @@ export default function PaymentSuccess() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            paymentKey,
+            paymentId,
             orderId,
             amount: Number(amount)
           })
@@ -92,7 +91,7 @@ export default function PaymentSuccess() {
     };
 
     confirmPayment();
-  }, [paymentKey, orderId, amount]);
+  }, [paymentId, orderId, amount]);
 
   if (isProcessing) {
     return (

@@ -54,10 +54,10 @@ export const TIER_PERMISSIONS: Record<MembershipTier, ITierPermissions> = {
   }
 }; 
 
-// 🎯 토스페이먼츠 결제 시스템 타입 정의
+// 🎯 포트원(PortOne) V2 결제 시스템 타입 정의
 
-// 결제 수단 타입
-export type PaymentMethod = 'card' | 'virtual_account' | 'bank_transfer' | 'mobile_money';
+// 결제 수단 타입 (포트원 V2 표준)
+export type PaymentMethod = 'CARD' | 'VIRTUAL_ACCOUNT' | 'TRANSFER' | 'MOBILE' | 'GIFT_CERTIFICATE' | 'EASY_PAY';
 
 // 결제 상태 타입  
 export type PaymentStatus = 'pending' | 'confirmed' | 'failed' | 'cancelled' | 'refunded';
@@ -93,8 +93,8 @@ export interface ISubscription {
   startDate: Date;
   endDate: Date;
   autoRenew: boolean;
-  tossCustomerKey?: string;
-  tossBillingKey?: string;
+  portoneCustomerKey?: string;
+  portoneBillingKey?: string;
   metadata?: Record<string, any>;
   createdAt: Date;
   updatedAt: Date;
@@ -106,8 +106,8 @@ export interface IPayment {
   userId: string;
   subscriptionId?: string;
   planId: string;
-  tossPaymentKey: string;
-  tossOrderId: string;
+  portonePaymentKey: string;
+  portoneOrderId: string;
   amount: number;
   method: string;
   status: PaymentStatus;
@@ -117,66 +117,58 @@ export interface IPayment {
   updatedAt: Date;
 }
 
-// 토스페이먼츠 결제 요청 인터페이스
-export interface ITossPaymentRequest {
-  orderId: string;
-  orderName: string;
-  amount: number;
-  customerEmail?: string;
-  customerName?: string;
-  customerMobilePhone?: string;
-  successUrl: string;
-  failUrl: string;
+// 포트원 V2 고객 정보 인터페이스
+export interface ICustomer {
+  customerId?: string;
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  email?: string;
+  address?: IAddress;
 }
 
-// 토스페이먼츠 결제 승인 요청 인터페이스
-export interface ITossPaymentConfirm {
-  paymentKey: string;
-  orderId: string;
-  amount: number;
+// 주소 정보 인터페이스
+export interface IAddress {
+  country?: string;
+  addressLine1: string;
+  addressLine2: string;
+  city?: string;
+  province?: string;
 }
 
-// 토스페이먼츠 결제 승인 응답 인터페이스
-export interface ITossPaymentResponse {
-  paymentKey: string;
-  orderId: string;
+// 포트원 V2 결제 요청 인터페이스
+export interface IPortOnePaymentRequest {
+  storeId: string;
+  channelKey: string;
+  paymentId: string;
   orderName: string;
-  method: string;
   totalAmount: number;
-  status: string;
-  requestedAt: string;
-  approvedAt?: string;
-  card?: {
-    company: string;
-    number: string;
-    installmentPlanMonths: number;
-    isInterestFree: boolean;
-    acquireStatus: string;
-  };
-  virtualAccount?: {
-    bank: string;
-    accountNumber: string;
-    dueDate: string;
-  };
-  transfer?: {
-    bank: string;
-    settlementStatus: string;
-  };
-  mobilePhone?: {
-    settlementStatus: string;
-    receiptUrl: string;
-  };
-  receipt?: {
-    url: string;
-  };
-  checkout?: {
-    url: string;
-  };
   currency: string;
-  failure?: {
-    code: string;
-    message: string;
-  };
+  payMethod: PaymentMethod;
+  customer?: ICustomer;
+  customData?: Record<string, any>;
+  redirectUrl?: string;
+  noticeUrls?: string[];
+}
+
+// 포트원 V2 결제 결과 인터페이스
+export interface IPortOnePaymentResult {
+  code?: string;
+  message?: string;
+  paymentId?: string;
+  txId?: string;
+}
+
+// 포트원 V2 결제 검증 인터페이스
+export interface IPortOnePaymentVerification {
+  status: 'PAID' | 'FAILED' | 'CANCELLED' | 'PARTIAL_CANCELLED';
+  paymentId: string;
+  orderName: string;
+  amount: number;
+  currency: string;
+  customer?: ICustomer;
+  customData?: Record<string, any>;
 }
 
 // 결제 UI 상태 인터페이스

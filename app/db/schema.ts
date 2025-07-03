@@ -117,7 +117,7 @@ export const bookmarksRelations = relations(bookmarks, ({ one }) => ({
   }),
 }));
 
-// 🎯 토스페이먼츠 결제 시스템 관련 테이블들
+// 🎯 포트원(PortOne) V2 결제 시스템 관련 테이블들
 
 // 구독 계획 테이블 (월간/연간 요금제)
 export const subscriptionPlans = pgTable("subscription_plans", {
@@ -154,8 +154,8 @@ export const subscriptions = pgTable("subscriptions", {
   startDate: timestamp("start_date", { withTimezone: true }).notNull(),
   endDate: timestamp("end_date", { withTimezone: true }).notNull(),
   autoRenew: boolean("auto_renew").default(true).notNull(),
-  tossCustomerKey: text("toss_customer_key"), // 토스페이먼츠 고객 키
-  tossBillingKey: text("toss_billing_key"), // 토스페이먼츠 빌링 키 (자동결제용)
+  portoneCustomerKey: text("portone_customer_key"), // 포트원 고객 키
+  portoneBillingKey: text("portone_billing_key"), // 포트원 빌링 키 (자동결제용)
   metadata: jsonb("metadata"), // 추가 구독 정보
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -172,15 +172,15 @@ export const payments = pgTable("payments", {
   planId: varchar("plan_id", { length: 256 })
     .notNull()
     .references(() => subscriptionPlans.id),
-  tossPaymentKey: text("toss_payment_key").notNull(), // 토스페이먼츠 결제 키
-  tossOrderId: text("toss_order_id").notNull(), // 토스페이먼츠 주문 ID
+  portonePaymentKey: text("portone_payment_key").notNull(), // 포트원 결제 키
+  portoneOrderId: text("portone_order_id").notNull(), // 포트원 주문 ID
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   method: text("method").notNull(), // 결제 수단 (카드, 가상계좌 등)
   status: text("status", { 
     enum: ["pending", "confirmed", "failed", "cancelled", "refunded"] 
   }).notNull(),
   paidAt: timestamp("paid_at", { withTimezone: true }),
-  metadata: jsonb("metadata"), // 토스페이먼츠 응답 전체 저장
+  metadata: jsonb("metadata"), // 포트원 응답 전체 저장
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

@@ -121,32 +121,21 @@ export function PremiumUpgradeModal({
 
       console.log('✅ [Payment Request Created]', createResult.data);
 
-      // 🎯 프리미엄 모달을 먼저 닫기 (토스페이먼츠 모달과의 충돌 방지)
+      // 🎯 프리미엄 모달을 먼저 닫기 (포트원 모달과의 충돌 방지)
       console.log('🔽 [Payment] 프리미엄 모달 닫는 중...');
       onClose();
 
       // 모달 닫힘 애니메이션을 위한 약간의 지연
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      // 2. 토스페이먼츠 SDK 로드 및 결제 위젯 호출
-      const { loadTossPayments } = await import('@tosspayments/payment-sdk');
+      // 2. 포트원 V2 결제 페이지로 리디렉션
+      console.log('💳 [Payment] 포트원 결제 페이지로 이동...');
       
-      // 테스트 환경용 클라이언트 키 (실제 결제되지 않음)
-      const tossClientKey = 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq';
-      const tossPayments = await loadTossPayments(tossClientKey);
-
-      console.log('💳 [Payment] 토스페이먼츠 결제 창 호출...');
-
-      // 3. 결제 창 호출
-      await tossPayments.requestPayment('카드', {
-        amount: createResult.data.amount,
-        orderId: createResult.data.orderId,
-        orderName: createResult.data.orderName,
-        customerName: createResult.data.customerName,
-        customerEmail: createResult.data.customerEmail,
-        successUrl: createResult.data.successUrl,
-        failUrl: createResult.data.failUrl,
-      });
+      // 포트원 결제 요청 데이터를 세션 스토리지에 저장
+      sessionStorage.setItem('portone_payment_data', JSON.stringify(createResult.data));
+      
+      // 포트원 결제 페이지로 리디렉션 (결제 완료 후 successUrl로 돌아옴)
+      window.location.href = createResult.data.redirectUrl || createResult.data.successUrl;
 
     } catch (error: any) {
       console.error('❌ [Payment Error]', error);
@@ -291,9 +280,9 @@ export function PremiumUpgradeModal({
               <Badge variant="secondary" className="bg-purple-100 text-purple-700">
                 추천
               </Badge>
-            </div>
-            
-            <div className="space-y-2">
+          </div>
+
+          <div className="space-y-2">
               {PREMIUM_FEATURES.map((feature, index) => (
                 <div key={index} className="flex items-center gap-2">
                   <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
