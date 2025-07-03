@@ -141,6 +141,7 @@ export interface IAddress {
 export interface IPortOnePaymentRequest {
   storeId: string;
   channelKey: string;
+  pgProvider?: string;
   paymentId: string;
   orderName: string;
   totalAmount: number;

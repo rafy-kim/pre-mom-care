@@ -110,7 +110,7 @@ export const action = async (args: ActionFunctionArgs) => {
         billingPeriod: plan.billingPeriod,
         orderId,
       },
-      redirectUrl: `${baseUrl}/payment/success?paymentId=${paymentId}&orderId=${orderId}`,
+      redirectUrl: `${baseUrl}/payment/success?paymentId=${paymentId}&orderId=${orderId}&amount=${plan.price}`,
       noticeUrls: [`${baseUrl}/api/payment/webhook`],
     };
 
@@ -135,8 +135,8 @@ export const action = async (args: ActionFunctionArgs) => {
           features: plan.features
         },
         // 추가 응답 데이터
-        successUrl: `${baseUrl}/payment/success?paymentId=${paymentId}&orderId=${orderId}`,
-        failUrl: `${baseUrl}/payment/fail?paymentId=${paymentId}&orderId=${orderId}`,
+        successUrl: `${baseUrl}/payment/success?paymentId=${paymentId}&orderId=${orderId}&amount=${plan.price}`,
+        failUrl: `${baseUrl}/payment/fail?paymentId=${paymentId}&orderId=${orderId}&amount=${plan.price}`,
       }
     } as IPaymentApiResponse);
 

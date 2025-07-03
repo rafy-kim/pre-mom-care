@@ -128,14 +128,64 @@ export function PremiumUpgradeModal({
       // 모달 닫힘 애니메이션을 위한 약간의 지연
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      // 2. 포트원 V2 결제 페이지로 리디렉션
-      console.log('💳 [Payment] 포트원 결제 페이지로 이동...');
+      // 2. 포트원 브라우저 SDK를 사용한 결제 요청
+      console.log('💳 [Payment] 포트원 SDK 로딩 중...');
       
-      // 포트원 결제 요청 데이터를 세션 스토리지에 저장
-      sessionStorage.setItem('portone_payment_data', JSON.stringify(createResult.data));
+      // 포트원 SDK 동적 로드
+      const PortOne = await import('@portone/browser-sdk/v2');
       
-      // 포트원 결제 페이지로 리디렉션 (결제 완료 후 successUrl로 돌아옴)
-      window.location.href = createResult.data.redirectUrl || createResult.data.successUrl;
+      console.log('🎯 [Payment] 포트원 결제 요청:', createResult.data);
+
+      // 포트원 SDK 파라미터 로깅
+      const paymentParams = {
+        storeId: createResult.data.storeId,
+        channelKey: createResult.data.channelKey, // channelKey 추가
+        paymentId: createResult.data.paymentId,
+        orderName: createResult.data.orderName,
+        totalAmount: createResult.data.totalAmount,
+        currency: createResult.data.currency,
+        payMethod: createResult.data.payMethod,
+        customer: createResult.data.customer,
+        redirectUrl: createResult.data.redirectUrl,
+        noticeUrls: createResult.data.noticeUrls,
+        customData: createResult.data.customData,
+      };
+
+      console.log('📋 [PortOne SDK] 전달할 파라미터:', paymentParams);
+
+      const response = await PortOne.requestPayment(paymentParams);
+
+      console.log('📋 [PortOne Response]', response);
+
+      if (!response) {
+        throw new Error('포트원 결제 응답을 받지 못했습니다.');
+      }
+
+      if (response.code != null) {
+        // 결제 실패 또는 취소
+        console.warn('⚠️ [Payment Failed/Cancelled]', {
+          code: response.code,
+          message: response.message
+        });
+        
+        if (response.code === 'USER_CANCEL') {
+          // 사용자 취소의 경우 특별한 알림 없이 조용히 처리
+          console.log('ℹ️ [Payment] 사용자가 결제를 취소했습니다.');
+        } else {
+          alert(`결제 실패: ${response.message || '알 수 없는 오류'}`);
+        }
+        return;
+      }
+
+      if (!response.paymentId) {
+        throw new Error('결제 ID를 받지 못했습니다.');
+      }
+
+      // 결제 성공 - 성공 페이지로 바로 리디렉션 (결제 승인은 success 페이지에서 처리)
+      console.log('✅ [Payment Success] 성공 페이지로 리디렉션:', response.paymentId);
+      
+      // 성공 페이지로 이동 (결제 승인은 success 페이지에서 단일하게 처리)
+      window.location.href = `/payment/success?paymentId=${response.paymentId}&orderId=${createResult.data.customData.orderId}&amount=${createResult.data.totalAmount}`;
 
     } catch (error: any) {
       console.error('❌ [Payment Error]', error);

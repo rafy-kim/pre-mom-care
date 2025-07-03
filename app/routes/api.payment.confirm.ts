@@ -15,20 +15,63 @@ const verifyPortOnePayment = async (paymentId: string) => {
     throw new Error("PORTONE_API_SECRET is not configured");
   }
 
-  const response = await fetch(`https://api.portone.io/payments/${paymentId}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `PortOne ${apiSecret}`,
-      'Content-Type': 'application/json',
-    },
+  console.log('🔍 [PortOne API] 결제 정보 조회 시작:', {
+    paymentId,
+    apiUrl: `https://api.portone.io/payments/${paymentId}`,
+    hasApiSecret: !!apiSecret
   });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(`PortOne API Error: ${errorData.message || 'Unknown error'}`);
-  }
+  try {
+    const response = await fetch(`https://api.portone.io/payments/${paymentId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `PortOne ${apiSecret}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
-  return await response.json();
+    console.log('📡 [PortOne API] 응답 상태:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok
+    });
+
+    if (!response.ok) {
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch (parseError) {
+        const textResponse = await response.text();
+        console.error('❌ [PortOne API] JSON 파싱 실패:', {
+          status: response.status,
+          response: textResponse,
+          parseError: parseError
+        });
+        throw new Error(`PortOne API Error (HTTP ${response.status}): ${textResponse || response.statusText}`);
+      }
+      
+      console.error('❌ [PortOne API] 에러 응답:', {
+        status: response.status,
+        errorData
+      });
+      
+      throw new Error(`PortOne API Error (HTTP ${response.status}): ${errorData.message || JSON.stringify(errorData)}`);
+    }
+
+    const paymentData = await response.json();
+    console.log('✅ [PortOne API] 결제 정보 조회 성공:', {
+      paymentId: paymentData.id,
+      status: paymentData.status,
+      amount: paymentData.amount?.total,
+      customData: paymentData.customData
+    });
+
+    return paymentData;
+    
+  } catch (error) {
+    console.error('💥 [PortOne API] 네트워크 에러:', error);
+    throw error;
+  }
 };
 
 export const action = async (args: ActionFunctionArgs) => {
@@ -96,7 +139,8 @@ export const action = async (args: ActionFunctionArgs) => {
 
     try {
       // 🔒 중복 요청 방지: 기존 결제 기록 조회 (모든 상태 포함)
-      const [existingPayment] = await db
+      // orderId로 먼저 검색하고, 없으면 paymentId로 검색 (SDK 방식에서는 paymentId가 포트원에서 생성됨)
+      let existingPaymentResult = await db
         .select()
         .from(payments)
         .where(
@@ -107,12 +151,28 @@ export const action = async (args: ActionFunctionArgs) => {
         )
         .limit(1);
 
-      if (!existingPayment) {
+      if (existingPaymentResult.length === 0) {
+        // orderId로 찾지 못한 경우, 우리가 생성한 paymentId로 검색
+        existingPaymentResult = await db
+          .select()
+          .from(payments)
+          .where(
+            and(
+              eq(payments.id, paymentId),
+              eq(payments.userId, userId)
+            )
+          )
+          .limit(1);
+      }
+
+      if (existingPaymentResult.length === 0) {
         return json({ 
           success: false, 
           error: "Payment record not found" 
         } as IPaymentApiResponse, { status: 404 });
       }
+
+      const existingPayment = existingPaymentResult[0];
 
       // 🚫 이미 처리된 결제인지 확인
       if (existingPayment.status === 'confirmed') {
@@ -233,8 +293,40 @@ export const action = async (args: ActionFunctionArgs) => {
       }
 
       // 상품 정보 검증 (customData에서)
-      const customData = payment.customData as Record<string, any>;
+      let customData: Record<string, any>;
+      
+      // customData가 문자열인 경우 JSON 파싱
+      if (typeof payment.customData === 'string') {
+        try {
+          customData = JSON.parse(payment.customData);
+        } catch (error) {
+          console.error('❌ [PortOne Payment] customData JSON 파싱 실패:', {
+            customData: payment.customData,
+            error
+          });
+          return json({
+            success: false,
+            error: "Invalid payment custom data format"
+          } as IPaymentApiResponse, { status: 400 });
+        }
+      } else {
+        customData = payment.customData as Record<string, any>;
+      }
+      
+      console.log('🔍 [PortOne Payment] 상품 정보 비교:', {
+        'PortOne customData': customData,
+        'PortOne planId': customData?.planId,
+        'DB planId': existingPayment.planId,
+        'Match': customData?.planId === existingPayment.planId
+      });
+      
       if (customData?.planId !== existingPayment.planId) {
+        console.error('❌ [PortOne Payment] 상품 정보 불일치:', {
+          expected: existingPayment.planId,
+          received: customData?.planId,
+          fullCustomData: customData
+        });
+        
         return json({
           success: false,
           error: "Product information mismatch"
