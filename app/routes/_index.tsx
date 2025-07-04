@@ -14,23 +14,25 @@ export const loader = async (args: LoaderFunctionArgs) => {
 
 export default function Index() {
   return (
-    <div className="flex min-h-screen flex-col bg-light-gray touch-manipulation">
-      <div className="flex flex-1 flex-col items-center justify-center p-4 sm:p-8 text-center">
-        <img src="/ansimi.png" alt="안심이 마스코트" className="h-20 w-20 sm:h-24 sm:w-24" />
-        <h1 className="mt-6 text-2xl sm:text-4xl font-bold text-dark-gray px-4">
-          예비맘, 안심 톡
-        </h1>
-        <p className="mt-8 sm:mt-12 max-w-md text-base sm:text-lg text-gray-600 px-4 leading-relaxed sm:leading-loose">
-          임신하고 나서 궁금한 점 많으셨죠?
-          <br />
-          신뢰할 수 있는 답변을 출처와 함께 제공하는
-          <br />
-          '예비맘, 안심 톡'에 물어보세요!
-        </p>
+    <div className="flex h-screen flex-col bg-light-gray touch-manipulation overflow-hidden">
+      <div className="flex flex-1 flex-col items-center justify-center px-4 sm:px-8 text-center min-h-0">
+        <div className="flex flex-col items-center justify-center max-w-md w-full">
+          <img src="/ansimi.png" alt="안심이 마스코트" className="h-16 w-16 sm:h-20 sm:w-20" />
+          <h1 className="mt-4 sm:mt-6 text-xl sm:text-2xl font-bold text-dark-gray">
+            예비맘, 안심 톡
+          </h1>
+          <p className="mt-6 sm:mt-8 text-sm sm:text-base text-gray-600 leading-relaxed">
+            임신하고 나서 궁금한 점 많으셨죠?
+            <br />
+            신뢰할 수 있는 답변을 출처와 함께 제공하는
+            <br />
+            '예비맘, 안심 톡'에 물어보세요!
+          </p>
+        </div>
       </div>
-      <div className="p-4 sm:p-8 pb-safe">
+      <div className="flex-shrink-0 p-4 sm:p-6 pb-safe">
         <SignedOut>
-          <div className="mx-auto flex max-w-sm flex-col items-center gap-4">
+          <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
             <SignInButton mode="modal">
               <Button size="lg" className="w-full touch-manipulation">
                 시작하기
