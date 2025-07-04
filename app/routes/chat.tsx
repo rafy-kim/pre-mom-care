@@ -38,6 +38,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "~/components/ui/tabs";
+import { BusinessFooter } from "~/components/layout/BusinessFooter";
 
 export const loader = async (args: LoaderFunctionArgs) => {
   const { userId } = await getAuth(args);
@@ -424,6 +425,9 @@ export default function ChatPage() {
             <main className="flex flex-1 flex-col overflow-y-hidden">
               <Outlet context={{ userProfile }} />
             </main>
+            
+            {/* 로그인 사용자용 사업자 정보 푸터 */}
+            <BusinessFooter />
           </div>
         </div>
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -570,6 +574,9 @@ export default function ChatPage() {
           <ChatInput onSendMessage={handleGuestSendMessage} isLoading={isLoading} />
         </div>
       </footer>
+
+      {/* 사업자 정보 푸터 */}
+      <BusinessFooter />
 
       {/* 프리미엄 업그레이드 모달 */}
       <PremiumUpgradeModal

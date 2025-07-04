@@ -9,6 +9,7 @@ import { SignedOut, SignInButton } from "@clerk/remix";
 import { db, messages } from "~/db";
 import { eq } from "drizzle-orm";
 import { ChatMessage } from "~/components/chat/ChatMessage";
+import { BusinessFooter } from "~/components/layout/BusinessFooter";
 
 export const loader = async (args: LoaderFunctionArgs) => {
   const { params } = args;
@@ -68,7 +69,7 @@ export default function SharedMessagePage() {
   const { message } = useLoaderData<typeof loader>();
 
   return (
-    <div className="flex flex-col h-screen bg-light-gray">
+    <div className="flex flex-col min-h-screen bg-light-gray">
       <header className="border-b bg-white">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between p-4">
           <Link to="/chat">
@@ -104,6 +105,9 @@ export default function SharedMessagePage() {
           <ShareBanner />
         </div>
       </main>
+      
+      {/* 사업자 정보 푸터 */}
+      <BusinessFooter />
     </div>
   );
 } 

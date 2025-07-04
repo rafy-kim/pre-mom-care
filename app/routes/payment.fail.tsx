@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Button } from "~/components/ui/button";
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { XCircle, AlertTriangle } from "lucide-react";
+import { BusinessFooter } from "~/components/layout/BusinessFooter";
 
 export default function PaymentFail() {
   const [searchParams] = useSearchParams();
@@ -42,65 +43,70 @@ export default function PaymentFail() {
   const isUserCanceled = code === "PAY_PROCESS_CANCELED" || code === "PAY_PROCESS_ABORTED";
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          {isUserCanceled ? (
-            <AlertTriangle className="h-12 w-12 text-yellow-600 mx-auto mb-4" />
-          ) : (
-            <XCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
-          )}
-          <CardTitle className={isUserCanceled ? "text-yellow-600" : "text-red-600"}>
-            {isUserCanceled ? "결제 취소" : "결제 실패"}
-          </CardTitle>
-          <CardDescription>
-            {isUserCanceled 
-              ? "결제가 취소되었습니다" 
-              : "결제 처리 중 문제가 발생했습니다"
-            }
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Alert>
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{errorMessage}</AlertDescription>
-          </Alert>
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <div className="flex-1 flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            {isUserCanceled ? (
+              <AlertTriangle className="h-12 w-12 text-yellow-600 mx-auto mb-4" />
+            ) : (
+              <XCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
+            )}
+            <CardTitle className={isUserCanceled ? "text-yellow-600" : "text-red-600"}>
+              {isUserCanceled ? "결제 취소" : "결제 실패"}
+            </CardTitle>
+            <CardDescription>
+              {isUserCanceled 
+                ? "결제가 취소되었습니다" 
+                : "결제 처리 중 문제가 발생했습니다"
+              }
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
 
-          {orderId && (
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <p className="text-xs text-gray-600">주문 번호</p>
-              <p className="text-sm font-mono">{orderId}</p>
-            </div>
-          )}
+            {orderId && (
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="text-xs text-gray-600">주문 번호</p>
+                <p className="text-sm font-mono">{orderId}</p>
+              </div>
+            )}
 
-          <div className="flex gap-2">
-            <Button 
-              onClick={() => navigate("/chat")} 
-              variant="outline" 
-              className="flex-1"
-            >
-              홈으로 가기
-            </Button>
-            {!isUserCanceled && (
+            <div className="flex gap-2">
               <Button 
-                onClick={() => navigate(-1)} 
+                onClick={() => navigate("/chat")} 
+                variant="outline" 
                 className="flex-1"
               >
-                다시 시도
+                홈으로 가기
+              </Button>
+              {!isUserCanceled && (
+                <Button 
+                  onClick={() => navigate(-1)} 
+                  className="flex-1"
+                >
+                  다시 시도
+                </Button>
+              )}
+            </div>
+
+            {isUserCanceled && (
+              <Button 
+                onClick={() => navigate(-1)} 
+                className="w-full"
+              >
+                결제 다시 시도
               </Button>
             )}
-          </div>
-
-          {isUserCanceled && (
-            <Button 
-              onClick={() => navigate(-1)} 
-              className="w-full"
-            >
-              결제 다시 시도
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* 사업자 정보 푸터 */}
+      <BusinessFooter />
     </div>
   );
 } 
