@@ -23,6 +23,7 @@ import { Bot } from "lucide-react";
 import { QuestionLimitIndicator } from "~/components/freemium/QuestionLimitIndicator";
 import { PremiumUpgradeModal } from "~/components/freemium/PremiumUpgradeModal";
 import { useFreemiumPolicy } from "~/hooks/useFreemiumPolicy";
+import { action as geminiAction } from "~/routes/api.gemini";
 
 export const loader = async (args: LoaderFunctionArgs) => {
   const { userId } = await getAuth(args);
@@ -151,31 +152,29 @@ export const action = async (args: ActionFunctionArgs) => {
 
   // 2. Call AI API with Freemium check
   try {
-    const geminiResponse = await fetch(
-      new URL("/api/gemini", args.request.url),
-      {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          // Clerk 인증 정보만 선택적으로 전달
-          ...(args.request.headers.get("authorization") && {
-            "authorization": args.request.headers.get("authorization")!
-          }),
-          ...(args.request.headers.get("cookie") && {
-            "cookie": args.request.headers.get("cookie")!
-          })
-        },
-        body: JSON.stringify({ 
-          message: userMessageContent, // The current question for vector search
-          history: fullHistory // The full conversation history for context
-        }),
-      }
-    );
+    // 🔧 [FIX] 직접 API 액션 함수 호출 (fetch 대신)
+    const geminiRequest = new Request(new URL("/api/gemini", args.request.url), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...Object.fromEntries(args.request.headers.entries()), // 모든 헤더 복사
+      },
+      body: JSON.stringify({ 
+        message: userMessageContent, // The current question for vector search
+        history: fullHistory // The full conversation history for context
+      }),
+    });
+
+    const geminiResponse = await geminiAction({
+      request: geminiRequest,
+      params: {},
+      context: args.context,
+    });
 
     const responseData = await geminiResponse.json();
 
     // Freemium 제한 차단 응답 처리
-    if (!geminiResponse.ok && responseData.freemiumBlock) {
+    if (geminiResponse.status === 429 && responseData.freemiumBlock) {
       // 저장된 사용자 메시지 롤백
       await db.delete(messages).where(eq(messages.id, userMessage.id));
       
@@ -190,7 +189,7 @@ export const action = async (args: ActionFunctionArgs) => {
     }
 
     // 기타 API 오류
-    if (!geminiResponse.ok) {
+    if (geminiResponse.status !== 200) {
       console.error('❌ [CHAT ACTION] AI API 오류:', responseData);
       // 저장된 사용자 메시지 롤백
       await db.delete(messages).where(eq(messages.id, userMessage.id));

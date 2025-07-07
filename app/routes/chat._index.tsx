@@ -18,6 +18,7 @@ import { LoginBanner } from "~/components/auth/LoginBanner";
 import { QuestionLimitIndicator } from "~/components/freemium/QuestionLimitIndicator";
 import { PremiumUpgradeModal } from "~/components/freemium/PremiumUpgradeModal";
 import { useFreemiumPolicy } from "~/hooks/useFreemiumPolicy";
+import { action as geminiAction } from "~/routes/api.gemini";
 
 type ContextType = {
   userProfile: ReturnType<typeof useOutletContext> extends { userProfile: infer T } ? T : never;
@@ -88,35 +89,35 @@ export const action = async (args: ActionFunctionArgs) => {
 
   // 5. AI API 호출하여 질문 제한 체크 및 응답 생성
   try {
-          // 개발 환경에서만 AI API 호출 로그 출력
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🎯 [Server Action] AI API 호출 시작');
-      }
-    const geminiResponse = await fetch(
-      new URL("/api/gemini", args.request.url),
-      {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          ...(args.request.headers.get("authorization") && {
-            "authorization": args.request.headers.get("authorization")!
-          }),
-          ...(args.request.headers.get("cookie") && {
-            "cookie": args.request.headers.get("cookie")!
-          })
-        },
-        body: JSON.stringify({ 
-          message: userMessageContent,
-          history: [userMessage] // 첫 질문이므로 history는 사용자 질문만 포함
-        }),
-      }
-    );
+    // 개발 환경에서만 AI API 호출 로그 출력
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🎯 [Server Action] AI API 호출 시작');
+    }
+
+    // 🔧 [FIX] 직접 API 액션 함수 호출 (fetch 대신)
+    const geminiRequest = new Request(new URL("/api/gemini", args.request.url), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...Object.fromEntries(args.request.headers.entries()), // 모든 헤더 복사
+      },
+      body: JSON.stringify({ 
+        message: userMessageContent,
+        history: [userMessage] // 첫 질문이므로 history는 사용자 질문만 포함
+      }),
+    });
+
+    const geminiResponse = await geminiAction({
+      request: geminiRequest,
+      params: {},
+      context: args.context,
+    });
 
     const responseData = await geminiResponse.json();
 
     // API에서 Freemium 제한 차단 응답이 온 경우
-    if (!geminiResponse.ok && responseData.freemiumBlock) {
-              console.log('🚫 [Server Action] 질문 제한 차단:', responseData.limitType);
+    if (geminiResponse.status === 429 && responseData.freemiumBlock) {
+      console.log('🚫 [Server Action] 질문 제한 차단:', responseData.limitType);
       
       // 로그인 사용자의 경우 생성된 대화방/메시지 롤백
       if (userId) {
@@ -126,8 +127,8 @@ export const action = async (args: ActionFunctionArgs) => {
             await tx.delete(chats).where(eq(chats.id, newChatId));
           });
           if (process.env.NODE_ENV === 'development') {
-          console.log('🔄 [Server Action] 대화방 롤백 완료');
-        }
+            console.log('🔄 [Server Action] 대화방 롤백 완료');
+          }
         } catch (rollbackError) {
           console.error('❌ [SERVER ACTION] 대화방 롤백 실패:', rollbackError);
         }
@@ -144,7 +145,7 @@ export const action = async (args: ActionFunctionArgs) => {
     }
 
     // API 호출 성공 시 AI 응답 저장 (로그인 사용자만)
-    if (geminiResponse.ok && userId) {
+    if (geminiResponse.status === 200 && userId) {
       const { reply } = responseData;
       const aiMessage: IMessage = {
         id: nanoid(),

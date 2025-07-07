@@ -667,8 +667,31 @@ export const action = async (args: ActionFunctionArgs) => {
   }
 
   try {
+    // 🔍 [DEBUG] 요청 헤더와 쿠키 상세 로깅
+    console.log('🔍 [AUTH DEBUG] 요청 정보:', {
+      url: request.url,
+      method: request.method,
+      headers: {
+        host: request.headers.get('host'),
+        origin: request.headers.get('origin'),
+        referer: request.headers.get('referer'),
+        'user-agent': request.headers.get('user-agent'),
+        'content-type': request.headers.get('content-type'),
+        cookie: request.headers.get('cookie') ? 'Present' : 'Missing',
+        cookieCount: request.headers.get('cookie')?.split(';').length || 0,
+      }
+    });
+
     const authResult = await getAuth(args);
-    const { userId } = authResult;
+    const { userId, sessionId } = authResult;
+
+    // 🔍 [AUTH DEBUG] 인증 결과 상세 로깅
+    console.log('🔍 [AUTH DEBUG] getAuth 결과:', {
+      userId: userId || 'NULL',
+      sessionId: sessionId || 'NULL',
+      hasUserId: !!userId,
+      authResult: Object.keys(authResult),
+    });
 
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
     
