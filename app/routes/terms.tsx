@@ -34,17 +34,11 @@ export default function TermsPage() {
             <h1 className="text-3xl font-bold text-gray-900 mb-6">서비스 이용약관</h1>
             
             <div className="prose max-w-none space-y-6 text-gray-700">
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-sm text-yellow-800">
-                  ⚠️ <strong>개발자 노트:</strong> 아래 이용약관은 예시 템플릿입니다. 
-                  실제 서비스 운영 시에는 법무 전문가의 검토를 받아 정확한 약관으로 교체해야 합니다.
-                </p>
-              </div>
 
               <section>
                 <h2 className="text-xl font-semibold text-gray-900 mb-3">제1조 (목적)</h2>
                 <p>
-                  이 약관은 (주)프리맘케어(이하 "회사")가 제공하는 "예비맘, 안심 톡" 서비스(이하 "서비스")의 
+                  이 약관은 (주)라옴(이하 "회사")가 제공하는 "예비맘, 안심 톡" 서비스(이하 "서비스")의 
                   이용과 관련하여 회사와 이용자간의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.
                 </p>
               </section>
@@ -162,16 +156,64 @@ export default function TermsPage() {
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold text-gray-900 mb-3">제13조 (준거법 및 관할법원)</h2>
+                <h2 className="text-xl font-semibold text-gray-900 mb-3">제13조 (제3자 서비스 이용)</h2>
+                <div className="space-y-4">
+                  <p>
+                    본 서비스는 원활한 서비스 제공을 위해 다음의 제3자 서비스를 이용합니다. 
+                    각 제3자 서비스의 이용에는 해당 서비스의 이용약관이 적용됩니다.
+                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <p><strong>1. Clerk (사용자 인증 서비스)</strong></p>
+                      <p className="text-sm text-gray-600 ml-4">
+                        • 목적: 사용자 회원가입, 로그인, 계정 관리<br/>
+                        • 이용약관: <a href="https://clerk.com/terms" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://clerk.com/terms</a>
+                      </p>
+                    </div>
+                    <div>
+                      <p><strong>2. PortOne (결제 서비스)</strong></p>
+                      <p className="text-sm text-gray-600 ml-4">
+                        • 목적: 결제 처리, 구독 관리, 환불 처리<br/>
+                        • 이용약관: <a href="https://terms.portone.io/global/en/feb2024" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://terms.portone.io/global/en/feb2024</a>
+                      </p>
+                    </div>
+                    <div>
+                      <p><strong>3. Google Gemini (AI 서비스)</strong></p>
+                      <p className="text-sm text-gray-600 ml-4">
+                        • 목적: AI 챗봇 기능, 자연어 처리, 질의응답<br/>
+                        • 이용약관: <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://ai.google.dev/gemini-api/terms</a>
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    상기 제3자 서비스 이용 시 해당 서비스의 이용약관 및 개인정보 처리방침도 함께 적용되므로, 
+                    이용자는 각 서비스의 약관을 숙지하시기 바랍니다.
+                  </p>
+                </div>
+              </section>
+
+              <section>
+                <h2 className="text-xl font-semibold text-gray-900 mb-3">제14조 (준거법 및 관할법원)</h2>
                 <ol className="list-decimal list-inside space-y-2">
                   <li>회사와 이용자 간에 발생한 전자상거래 분쟁에 관한 소송은 대한민국 법을 적용하며, 회사의 본사 소재지를 관할하는 법원을 관할 법원으로 합니다.</li>
                 </ol>
               </section>
 
+              <section>
+                <h2 className="text-xl font-semibold text-gray-900 mb-3">제15조 (문의처)</h2>
+                <p>
+                  이용약관에 대한 질문이나 제안 사항이 있으면 다음의 연락처로 문의해 주시기 바랍니다:
+                </p>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li><strong>이메일:</strong> rafy@raom.kr</li>
+                  <li><strong>회사명:</strong> (주)라옴</li>
+                </ul>
+              </section>
+
               <section className="pt-6 border-t border-gray-200">
                 <p className="text-sm text-gray-600">
-                  <strong>시행일:</strong> 2024년 1월 1일<br/>
-                  <strong>최종 수정일:</strong> 2024년 1월 1일
+                  <strong>시행일:</strong> 2025년 7월 7일<br/>
+                  <strong>최종 수정일:</strong> 2025년 7월 7일
                 </p>
               </section>
             </div>

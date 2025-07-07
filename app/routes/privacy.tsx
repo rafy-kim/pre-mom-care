@@ -34,17 +34,10 @@ export default function PrivacyPage() {
             <h1 className="text-3xl font-bold text-gray-900 mb-6">개인정보처리방침</h1>
             
             <div className="prose max-w-none space-y-6 text-gray-700">
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-sm text-yellow-800">
-                  ⚠️ <strong>개발자 노트:</strong> 아래 개인정보처리방침은 예시 템플릿입니다. 
-                  실제 서비스 운영 시에는 개인정보보호법에 따라 정확한 방침으로 교체해야 합니다.
-                </p>
-              </div>
-
               <section>
                 <h2 className="text-xl font-semibold text-gray-900 mb-3">1. 개인정보의 처리목적</h2>
                 <p>
-                  (주)프리맘케어(이하 "회사")는 다음의 목적을 위하여 개인정보를 처리합니다. 
+                  (주)라옴(이하 "회사")는 다음의 목적을 위하여 개인정보를 처리합니다. 
                   처리하고 있는 개인정보는 다음의 목적 이외의 용도로는 이용되지 않으며, 
                   이용 목적이 변경되는 경우에는 개인정보보호법 제18조에 따라 별도의 동의를 받는 등 필요한 조치를 이행할 예정입니다.
                 </p>
@@ -84,7 +77,7 @@ export default function PrivacyPage() {
                     <ul className="list-disc list-inside ml-4 space-y-1">
                       <li><strong>필수항목:</strong> 이메일주소, 프로필 정보 (소셜 로그인 정보)</li>
                       <li><strong>선택항목:</strong> 아기 태명, 출산 예정일, 아기 성별, 사용자 관계(부/모)</li>
-                      <li><strong>자동수집항목:</strong> IP주소, 쿠키, MAC주소, 서비스 이용기록, 방문기록, 불량이용기록</li>
+                      <li><strong>자동수집항목:</strong> IP주소, 쿠키, 서비스 이용기록, 방문기록, 접속 시간 및 날짜, 기기 정보(운영체제), 애플리케이션 사용 시간</li>
                     </ul>
                   </div>
                   
@@ -95,6 +88,22 @@ export default function PrivacyPage() {
                       <li><strong>생성정보:</strong> 결제기록, 이용내역</li>
                     </ul>
                   </div>
+                  
+                  <div>
+                    <h4 className="font-medium mb-2">▶ AI 서비스 이용</h4>
+                    <ul className="list-disc list-inside ml-4 space-y-1">
+                      <li><strong>수집항목:</strong> 사용자 질문 내용, AI 응답 기록, 대화 세션 정보</li>
+                      <li><strong>이용목적:</strong> AI 서비스 품질 향상, 사용자 맞춤형 서비스 제공</li>
+                      <li><strong>보유기간:</strong> 대화 기록은 사용자 탈퇴 시까지 보관 (단, 법령에 따른 의무 보관 기간은 예외)</li>
+                    </ul>
+                  </div>
+                </div>
+                
+                <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-800">
+                    <strong>중요:</strong> 서비스 특성상 민감한 개인정보(건강정보, 임신관련 정보 등)가 포함될 수 있으므로, 
+                    이용자께서는 개인을 식별할 수 있는 구체적인 의료정보나 민감정보의 입력을 자제해 주시기 바랍니다.
+                  </p>
                 </div>
               </section>
 
@@ -129,19 +138,33 @@ export default function PrivacyPage() {
                       </thead>
                       <tbody>
                         <tr className="border-b">
-                          <td className="py-2">Clerk (클러크)</td>
+                          <td className="py-2">Clerk Inc.</td>
                           <td className="py-2">회원 인증 및 계정 관리</td>
                         </tr>
                         <tr className="border-b">
-                          <td className="py-2">포트원 (PortOne)</td>
+                          <td className="py-2">PortOne</td>
                           <td className="py-2">결제처리 및 결제 정보 관리</td>
                         </tr>
                         <tr className="border-b">
-                          <td className="py-2">Google Cloud Platform</td>
-                          <td className="py-2">클라우드 서버 호스팅 및 데이터 저장</td>
+                          <td className="py-2">Google LLC</td>
+                          <td className="py-2">AI 서비스 제공, 클라우드 서버 호스팅 및 데이터 저장</td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-2">Neon Inc.</td>
+                          <td className="py-2">데이터베이스 서비스 및 데이터 저장</td>
                         </tr>
                       </tbody>
                     </table>
+                  </div>
+                  
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      <strong>제3자 서비스 개인정보 처리방침:</strong><br/>
+                      • Clerk: <a href="https://clerk.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">https://clerk.com/privacy</a><br/>
+                      • PortOne: <a href="https://terms.portone.io" target="_blank" rel="noopener noreferrer" className="underline">https://terms.portone.io/global/en/feb2024</a><br/>
+                      • Google: <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">https://policies.google.com/privacy</a><br/>
+                      • Neon: <a href="https://neon.tech/privacy-guide" target="_blank" rel="noopener noreferrer" className="underline">https://neon.tech/privacy</a>
+                    </p>
                   </div>
                 </div>
               </section>
@@ -197,9 +220,10 @@ export default function PrivacyPage() {
                 <div className="mt-4 bg-gray-50 p-4 rounded-lg">
                   <h4 className="font-medium mb-2">▶ 개인정보보호책임자</h4>
                   <ul className="space-y-1">
-                    <li><strong>성명:</strong> 김대표</li>
+                    <li><strong>성명:</strong> 김범준</li>
                     <li><strong>직책:</strong> 대표이사</li>
-                    <li><strong>연락처:</strong> 02-1234-5678, support@premomcare.com</li>
+                    <li><strong>이메일:</strong> rafy@raom.kr</li>
+                    <li><strong>회사명:</strong> (주)라옴</li>
                   </ul>
                 </div>
                 
@@ -244,8 +268,8 @@ export default function PrivacyPage() {
 
               <section className="pt-6 border-t border-gray-200">
                 <p className="text-sm text-gray-600">
-                  <strong>시행일:</strong> 2024년 1월 1일<br/>
-                  <strong>최종 수정일:</strong> 2024년 1월 1일
+                  <strong>시행일:</strong> 2025년 7월 7일<br/>
+                  <strong>최종 수정일:</strong> 2025년 7월 7일
                 </p>
               </section>
             </div>

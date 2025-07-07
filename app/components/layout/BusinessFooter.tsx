@@ -19,7 +19,7 @@ export function BusinessFooter({ className = "" }: IBusinessFooterProps) {
               onClick={() => setIsExpanded(!isExpanded)}
               className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors"
             >
-              <span>(주)라옴 사업자 정보</span>
+              <span>사업자 정보</span>
               {isExpanded ? (
                 <ChevronUp className="h-4 w-4" />
               ) : (

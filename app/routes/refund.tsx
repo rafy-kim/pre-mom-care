@@ -34,17 +34,10 @@ export default function RefundPage() {
             <h1 className="text-3xl font-bold text-gray-900 mb-6">환불 정책</h1>
             
             <div className="prose max-w-none space-y-6 text-gray-700">
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-sm text-yellow-800">
-                  ⚠️ <strong>개발자 노트:</strong> 아래 환불정책은 예시 템플릿입니다. 
-                  실제 서비스 운영 시에는 전자상거래법 및 소비자보호법에 따라 정확한 정책으로 교체해야 합니다.
-                </p>
-              </div>
-
               <section>
                 <h2 className="text-xl font-semibold text-gray-900 mb-3">1. 기본 원칙</h2>
                 <p>
-                  (주)프리맘케어(이하 "회사")는 「전자상거래 등에서의 소비자보호에 관한 법률」 및 
+                  (주)라옴(이하 "회사")는 「전자상거래 등에서의 소비자보호에 관한 법률」 및 
                   「소비자기본법」 등 관련 법령을 준수하여 공정하고 투명한 환불 정책을 운영합니다.
                 </p>
                 <ul className="list-disc list-inside mt-3 space-y-2">
@@ -121,8 +114,7 @@ export default function RefundPage() {
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <h4 className="font-medium mb-3">📞 환불 신청 접수</h4>
                   <ul className="space-y-2">
-                    <li><strong>이메일:</strong> support@premomcare.com</li>
-                    <li><strong>전화:</strong> 02-1234-5678 (평일 09:00~18:00)</li>
+                    <li><strong>이메일:</strong> rafy@raom.kr</li>
                     <li><strong>운영시간:</strong> 평일 09:00~18:00 (점심시간 12:00~13:00 제외)</li>
                   </ul>
                 </div>
@@ -269,16 +261,16 @@ export default function RefundPage() {
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <h4 className="font-medium text-blue-900 mb-2">📞 환불 문의</h4>
                   <ul className="space-y-1 text-blue-800">
-                    <li><strong>이메일:</strong> support@premomcare.com</li>
-                    <li><strong>전화:</strong> 02-1234-5678</li>
+                    <li><strong>이메일:</strong> rafy@raom.kr</li>
+                    <li><strong>회사명:</strong> (주)라옴</li>
                     <li><strong>운영시간:</strong> 평일 09:00~18:00 (점심시간 12:00~13:00 제외)</li>
                     <li><strong>휴무:</strong> 토요일, 일요일, 공휴일</li>
                   </ul>
                 </div>
 
                 <p className="text-sm text-gray-600 mt-4">
-                  <strong>시행일:</strong> 2024년 1월 1일<br/>
-                  <strong>최종 수정일:</strong> 2024년 1월 1일
+                  <strong>시행일:</strong> 2025년 7월 7일<br/>
+                  <strong>최종 수정일:</strong> 2025년 7월 7일
                 </p>
               </section>
             </div>
