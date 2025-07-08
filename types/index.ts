@@ -195,4 +195,172 @@ export interface IPremiumUpgradeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLogin?: () => void; // 게스트 모드에서 로그인을 유도할 때 사용
+}
+
+// 🎯 나이스페이먼츠 Easy Pay 타입 정의
+export type NicePayEasyPayProvider = 'KAKAOPAY' | 'NAVERPAY' | 'SSGPAY';
+
+// 🎯 나이스페이먼츠 V2 카드 직접 입력 빌링 결제 타입 정의
+
+// 카드사 목록
+export type CardCompany = 
+  | 'HYUNDAI' | 'SAMSUNG' | 'SHINHAN' | 'KB' | 'BC' | 'HANA' | 'LOTTE' 
+  | 'WOORI' | 'NH' | 'CITI' | 'KAKAOBANK' | 'TOSSBANK' | 'UNKNOWN';
+
+// 빌링키 발급 방법 (카드만 지원)
+export type BillingKeyMethod = 'CARD';
+
+// 빌링키 상태
+export type BillingKeyStatus = 'active' | 'inactive' | 'expired';
+
+// 카드 입력 단계
+export type CardInputStep = 'card-input' | 'billing-issue' | 'payment-process' | 'complete';
+
+// 카드 정보 입력 폼
+export interface ICardForm {
+  cardNumber: string;
+  expiryMonth: string;
+  expiryYear: string;
+  cardholderName: string;
+  birthOrBusinessNumber: string; // 생년월일(6자리) 또는 사업자번호(10자리)
+  passwordTwoDigits: string; // 비밀번호 앞 2자리
+}
+
+// 카드 정보 검증 에러
+export interface ICardFormValidation {
+  cardNumber?: string;
+  expiryMonth?: string;
+  expiryYear?: string;
+  cardholderName?: string;
+  birthOrBusinessNumber?: string;
+  passwordTwoDigits?: string;
+}
+
+// 나이스페이먼츠 카드 빌링키 발급 요청 인터페이스
+export interface INicePayCardBillingKeyRequest {
+  storeId: string;
+  channelKey: string;
+  billingKeyMethod: BillingKeyMethod;
+  issueId: string; // 영문 대소문자, 숫자만 40자 이내
+  issueName: string; // 결제창 표시 제목
+  customer: ICustomer;
+  card: {
+    number: string;
+    expiryYear: string;
+    expiryMonth: string;
+    birthOrBusinessRegistrationNumber: string;
+    passwordTwoDigits: string;
+  };
+}
+
+// 나이스페이먼츠 카드 빌링키 발급 응답 인터페이스
+export interface INicePayCardBillingKeyResult {
+  code?: string;
+  message?: string;
+  billingKey?: string;
+  issueId?: string;
+  pgTxId?: string;
+  cardCompany?: CardCompany;
+  maskedCardNumber?: string; // 마스킹된 카드번호 (예: **** **** **** 1234)
+}
+
+// 나이스페이먼츠 카드 빌링키 정보 인터페이스
+export interface INicePayCardBillingKeyInfo {
+  id: string;
+  userId: string;
+  billingKey: string;
+  issueId: string;
+  cardCompany: CardCompany;
+  maskedCardNumber: string;
+  status: BillingKeyStatus;
+  issuedAt: Date;
+  expiresAt?: Date;
+  metadata?: Record<string, any>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// 나이스페이먼츠 정기결제 요청 인터페이스 (카드 빌링키 사용)
+export interface INicePayCardRecurringPaymentRequest {
+  storeId: string;
+  channelKey: string;
+  paymentId: string;
+  billingKey: string;
+  orderName: string;
+  amount: number;
+  currency: string;
+  customData?: Record<string, any>;
+  customer?: ICustomer;
+  noticeUrls?: string[];
+}
+
+// 나이스페이먼츠 정기결제 응답 인터페이스
+export interface INicePayCardRecurringPaymentResult {
+  code?: string;
+  message?: string;
+  paymentId?: string;
+  txId?: string;
+  amount?: number;
+  status?: string;
+  paidAt?: string;
+}
+
+// 카드 빌링 결제 모달 Props 인터페이스
+export interface ICardBillingPaymentProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onLogin?: () => void;
+  onPaymentSuccess?: () => void;
+}
+
+// 카드 빌링 UI 상태 인터페이스
+export interface ICardBillingUIState {
+  currentStep: CardInputStep;
+  cardForm: ICardForm;
+  validationErrors: ICardFormValidation;
+  isLoading: boolean;
+  isProcessingPayment: boolean;
+  billingKeyInfo?: INicePayCardBillingKeyInfo;
+  error?: string;
+}
+
+// 나이스페이먼츠 결제 옵션 인터페이스 (카드용)
+export interface INicePayCardPaymentOptions {
+  taxFreeAmount?: number; // 면세금액 (복합과세 계약시)
+  productType?: 'PHYSICAL' | 'DIGITAL'; // 휴대폰 소액결제용
+  installmentMonth?: number; // 카드 할부 개월수
+  bypass?: Record<string, any>; // 나이스페이먼츠 특화 옵션
+}
+
+// 나이스페이먼츠 결제 요청 인터페이스 (확장)
+export interface INicePaymentsPaymentRequest extends IPortOnePaymentRequest {
+  taxFreeAmount?: number;
+  productType?: 'PHYSICAL' | 'DIGITAL';
+  virtualAccount?: {
+    accountExpiry: string;
+  };
+  card?: {
+    installment?: {
+      monthOption?: {
+        fixedMonth: number;
+      };
+    };
+  };
+  giftCertificate?: {
+    certificateType: 'CULTURELAND';
+  };
+  bypass?: {
+    nice_v2?: {
+      MallUserID?: string;
+    };
+  };
+}
+
+// 나이스페이먼츠 카드 옵션 인터페이스
+export interface INicePaymentsCardOptions {
+  installment?: {
+    monthOption?: {
+      fixedMonth: number;
+    };
+  };
 } 

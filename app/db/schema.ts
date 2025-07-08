@@ -185,10 +185,37 @@ export const payments = pgTable("payments", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// 🎯 카드 빌링키 정보 테이블 (보안 및 관리용)
+export const cardBillingKeys = pgTable("card_billing_keys", {
+  id: varchar("id", { length: 256 }).primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => userProfiles.id, { onDelete: "cascade" }),
+  issueId: text("issue_id").notNull(), // 포트원 빌링키 발급 ID
+  billingKey: text("billing_key").notNull(), // 포트원 빌링키
+  cardCompany: text("card_company").notNull(), // 카드사
+  maskedCardNumber: text("masked_card_number").notNull(), // 마스킹된 카드번호
+  status: text("status", { 
+    enum: ["active", "inactive", "expired"] 
+  }).default("active").notNull(),
+  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  metadata: jsonb("metadata"), // 추가 빌링키 정보
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 // 결제 관련 테이블들의 관계 정의
 export const subscriptionPlansRelations = relations(subscriptionPlans, ({ many }) => ({
   subscriptions: many(subscriptions),
   payments: many(payments),
+}));
+
+export const cardBillingKeysRelations = relations(cardBillingKeys, ({ one }) => ({
+  user: one(userProfiles, {
+    fields: [cardBillingKeys.userId],
+    references: [userProfiles.id],
+  }),
 }));
 
 export const subscriptionsRelations = relations(subscriptions, ({ one, many }) => ({

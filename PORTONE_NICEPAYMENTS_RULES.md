@@ -8,7 +8,7 @@
 
 ```typescript
 // 환경변수에 나이스페이먼츠 채널 키 설정
-PORTONE_NICEPAY_CHANNEL_KEY=channel-key-9987cb87-6458-4888-b94e-68d9a2da896d
+PORTONE_CHANNEL_KEY=channel-key-9987cb87-6458-4888-b94e-68d9a2da896d
 ```
 
 #### 💳 나이스페이먼츠 지원 결제수단

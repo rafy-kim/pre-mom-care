@@ -15,6 +15,27 @@
       "when": 1751532798977,
       "tag": "0001_flippant_magdalene",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1751954739148,
+      "tag": "0002_white_captain_britain",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1751957957774,
+      "tag": "0003_wild_speed",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1751962611210,
+      "tag": "0004_jazzy_mauler",
+      "breakpoints": true
     }
   ]
 }
