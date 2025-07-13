@@ -795,7 +795,7 @@ export const action = async (args: ActionFunctionArgs) => {
          WHERE ref_type IN (${refTypeFilter})
        ) filtered_results
        LIMIT 5`,
-      [embeddingString, 0.75, 10] // 충분한 후보군 확보를 위해 10개로 설정
+      [embeddingString, 0.6, 10] // 충분한 후보군 확보를 위해 10개로 설정
     );
     
     // 상세 검색 결과 로그
