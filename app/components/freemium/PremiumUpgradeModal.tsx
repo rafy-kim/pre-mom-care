@@ -49,7 +49,7 @@ export function PremiumUpgradeModal({
   } = useFreemiumPolicy();
 
   // 상태 관리
-  const [price, setPrice] = useState<number>(2900); // 기본값
+  const [price, setPrice] = useState<number>(2000); // 기본값
   const [isLoadingPrice, setIsLoadingPrice] = useState(false);
   const [showNicePayModal, setShowNicePayModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);

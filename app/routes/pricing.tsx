@@ -5,6 +5,8 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { ArrowLeft, Check, Star, MessageSquare, Clock, Shield, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { PremiumUpgradeModal } from "~/components/freemium/PremiumUpgradeModal";
 
 interface IPlan {
   id: string;
@@ -18,10 +20,10 @@ export const loader = async (args: LoaderFunctionArgs) => {
   try {
     const baseUrl = new URL(args.request.url).origin;
     const response = await fetch(`${baseUrl}/api/subscription/plans`);
-    const data = await response.json();
+    const result = await response.json();
     
-    // API 응답 구조에 맞춰 처리
-    const plans = data.plans || [];
+    // API 응답 구조에 맞춰 처리 (data 속성에서 플랜 정보 추출)
+    const plans = result.success && result.data ? result.data : [];
     
     return json({ 
       plans: plans as IPlan[],
@@ -38,6 +40,7 @@ export const loader = async (args: LoaderFunctionArgs) => {
 
 export default function PricingPage() {
   const { plans, error } = useLoaderData<typeof loader>();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // plans가 undefined이거나 배열이 아닌 경우 방어적 처리
   const safePlans = Array.isArray(plans) ? plans : [];
@@ -46,6 +49,14 @@ export default function PricingPage() {
   const premiumPlan = safePlans.find((plan: IPlan) => 
     plan.id?.includes('premium') || plan.name?.includes('프리미엄')
   );
+
+  const handlePremiumClick = () => {
+    setShowUpgradeModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowUpgradeModal(false);
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-light-gray">
@@ -194,7 +205,7 @@ export default function PricingPage() {
                 </CardDescription>
                 <div className="mt-4">
                   <span className="text-4xl font-bold text-blue-600">
-                    {premiumPlan?.price?.toLocaleString() || '2,900'}원
+                    {premiumPlan?.price?.toLocaleString() || '2,000'}원
                   </span>
                   <span className="text-gray-600 ml-2">/월</span>
                 </div>
@@ -233,11 +244,12 @@ export default function PricingPage() {
                 </div>
                 
                 <div className="pt-4">
-                  <Link to="/chat">
-                    <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                      프리미엄 시작하기
-                    </Button>
-                  </Link>
+                  <Button 
+                    onClick={handlePremiumClick}
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                  >
+                    프리미엄 시작하기
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -306,11 +318,13 @@ export default function PricingPage() {
                   무료로 체험하기
                 </Button>
               </Link>
-              <Link to="/chat">
-                <Button size="lg" variant="outline">
-                  프리미엄 시작하기
-                </Button>
-              </Link>
+              <Button 
+                size="lg" 
+                variant="outline"
+                onClick={handlePremiumClick}
+              >
+                프리미엄 시작하기
+              </Button>
             </div>
           </div>
         </div>
@@ -318,6 +332,12 @@ export default function PricingPage() {
 
       {/* 사업자 정보 푸터 */}
       <BusinessFooter />
+
+      {/* 프리미엄 업그레이드 모달 */}
+      <PremiumUpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={handleCloseModal}
+      />
     </div>
   );
 } 
