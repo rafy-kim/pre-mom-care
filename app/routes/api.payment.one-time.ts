@@ -33,6 +33,14 @@ export const action = async (args: ActionFunctionArgs) => {
       } as IPaymentApiResponse, { status: 400 });
     }
 
+    // 단건결제 플랜만 허용
+    if (planId !== 'premium-onetime') {
+      return json({ 
+        success: false, 
+        error: "This endpoint only supports one-time payment plans" 
+      } as IPaymentApiResponse, { status: 400 });
+    }
+
     // 구독 계획 조회
     const [plan] = await db
       .select()
@@ -54,9 +62,17 @@ export const action = async (args: ActionFunctionArgs) => {
       } as IPaymentApiResponse, { status: 400 });
     }
 
+    // 단건결제인지 재검증
+    if (plan.billingPeriod !== 'one_time') {
+      return json({ 
+        success: false, 
+        error: "Plan is not a one-time payment plan" 
+      } as IPaymentApiResponse, { status: 400 });
+    }
+
     // 고유한 결제 ID 생성 (포트원 V2 형식)
-    const paymentId = `payment-${Date.now()}-${nanoid(8)}`;
-    const orderId = `order-${Date.now()}-${nanoid(8)}`;
+    const paymentId = `onetime-${Date.now()}-${nanoid(8)}`;
+    const orderId = `order-onetime-${Date.now()}-${nanoid(8)}`;
 
     // 결제 기록 생성 (pending 상태)
     await db.insert(payments).values({
@@ -71,7 +87,8 @@ export const action = async (args: ActionFunctionArgs) => {
       metadata: {
         planName: plan.name,
         membershipTier: plan.membershipTier,
-        billingPeriod: plan.billingPeriod,
+        billingPeriod: plan.billingPeriod, // 'one_time'
+        paymentType: 'one_time', // 단건결제 식별자
         customerEmail,
         customerName
       }
@@ -82,21 +99,32 @@ export const action = async (args: ActionFunctionArgs) => {
       ? 'https://premom.care' 
       : 'http://localhost:5173';
 
-    // 포트원 환경변수 확인
+    // 포트원 환경변수 확인 - 단건결제용 채널키 사용
     const storeId = process.env.PORTONE_STORE_ID;
-    const channelKey = process.env.PORTONE_CHANNEL_KEY;
+    const channelKey = process.env.PORTONE_ONETIME_CHANNEL_KEY; // 단건결제용 채널키
+
+    // 🔍 채널키 정보 로그 출력
+    console.log('🔑 [One-Time Payment] 채널키 정보:', {
+      storeId: storeId || 'undefined',
+      channelKey: channelKey || 'undefined',
+      PORTONE_ONETIME_CHANNEL_KEY: process.env.PORTONE_ONETIME_CHANNEL_KEY,
+      allChannelKeys: {
+        subscription: process.env.PORTONE_CHANNEL_KEY,
+        oneTime: process.env.PORTONE_ONETIME_CHANNEL_KEY
+      }
+    });
 
     if (!storeId || !channelKey) {
-      throw new Error("PortOne configuration is missing. Please set PORTONE_STORE_ID and PORTONE_CHANNEL_KEY in environment variables.");
+      throw new Error("PortOne configuration is missing. Please set PORTONE_STORE_ID and PORTONE_ONETIME_CHANNEL_KEY in environment variables.");
     }
 
     const paymentRequest: IPortOnePaymentRequest = {
       storeId,
       channelKey,
       paymentId,
-      orderName: plan.name,
+      orderName: `${plan.name} (이용권)`, // 이용권 명시
       totalAmount: Number(plan.price),
-      currency: 'KRW',
+      currency: 'CURRENCY_KRW', // PortOne V2에서는 CURRENCY_ 접두사 필요
       payMethod: 'CARD', // 기본값으로 카드 결제 설정
       customer: {
         customerId: userId,
@@ -108,21 +136,28 @@ export const action = async (args: ActionFunctionArgs) => {
         planName: plan.name,
         membershipTier: plan.membershipTier,
         billingPeriod: plan.billingPeriod,
+        paymentType: 'one_time', // 단건결제 구분자
         orderId,
       },
       redirectUrl: `${baseUrl}/payment/success?paymentId=${paymentId}&orderId=${orderId}&amount=${plan.price}`,
       noticeUrls: [`${baseUrl}/api/payment/webhook`],
     };
 
-    // 개발 환경에서만 상세 로그 출력
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🎯 [Payment Create] 결제 요청 생성:', {
-        userId,
-        planName: plan.name,
-        amount: plan.price,
-        paymentId
-      });
-    }
+    // 상세 로그 출력 (항상)
+    console.log('💰 [One-Time Payment] 단건결제 요청 생성:', {
+      userId,
+      planName: plan.name,
+      amount: plan.price,
+      paymentId,
+      paymentType: 'one_time',
+      storeId,
+      channelKey,
+      orderName: paymentRequest.orderName,
+      totalAmount: paymentRequest.totalAmount,
+      currency: paymentRequest.currency
+    });
+    
+    console.log('📋 [One-Time Payment] 전체 결제 요청 데이터:', paymentRequest);
 
     return json({ 
       success: true, 
@@ -131,7 +166,9 @@ export const action = async (args: ActionFunctionArgs) => {
         planDetails: {
           name: plan.name,
           membershipTier: plan.membershipTier,
-          features: plan.features
+          billingPeriod: plan.billingPeriod,
+          features: plan.features,
+          paymentType: 'one_time'
         },
         // 추가 응답 데이터
         successUrl: `${baseUrl}/payment/success?paymentId=${paymentId}&orderId=${orderId}&amount=${plan.price}`,
@@ -140,10 +177,10 @@ export const action = async (args: ActionFunctionArgs) => {
     } as IPaymentApiResponse);
 
   } catch (error) {
-    console.error("❌ [Payment Create Error]", error);
+    console.error("❌ [One-Time Payment Error]", error);
     return json({ 
       success: false, 
-      error: error instanceof Error ? error.message : "Failed to create payment request" 
+      error: error instanceof Error ? error.message : "Failed to create one-time payment request" 
     } as IPaymentApiResponse, { status: 500 });
   }
 }; 

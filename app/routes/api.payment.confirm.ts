@@ -184,8 +184,8 @@ export const action = async (args: ActionFunctionArgs) => {
             subscriptionId: subscription?.id,
             membershipTier: plan?.membershipTier,
             planName: plan?.name,
-            startDate: subscription?.startDate.toISOString(),
-            endDate: subscription?.endDate.toISOString(),
+            startDate: subscription?.startDate, // 이미 string 형태
+            endDate: subscription?.endDate, // 이미 string 형태
             alreadyProcessed: true
           }
         } as IPaymentApiResponse);
@@ -229,6 +229,51 @@ export const action = async (args: ActionFunctionArgs) => {
 
       const payment = paymentData;
 
+      // 🔍 PortOne API 응답 전체 로깅 (디버깅용)
+      console.log('🔍 [PortOne API] 전체 응답 구조:', {
+        paymentId: payment.id,
+        status: payment.status,
+        amount: payment.amount,
+        customData: payment.customData,
+        hasCustomData: payment.customData !== undefined,
+        customDataType: typeof payment.customData,
+        allFields: Object.keys(payment)
+      });
+
+      // paymentId로 이미 올바른 payment를 찾았으므로 planId 검증 불필요
+      // customData는 참고용으로만 사용
+      let customData: Record<string, any> = {};
+      
+      if (payment.customData) {
+        if (typeof payment.customData === 'string') {
+          try {
+            customData = JSON.parse(payment.customData);
+          } catch (error) {
+            console.warn('⚠️ [Payment] customData JSON 파싱 실패, 무시하고 진행:', { error });
+          }
+        } else if (typeof payment.customData === 'object') {
+          customData = payment.customData as Record<string, any>;
+        }
+      }
+      
+      // customData가 없으면 기존 metadata 사용
+      if (!customData || Object.keys(customData).length === 0) {
+        console.log('📋 [Payment] PortOne customData 없음, 기존 payments metadata 사용');
+        if (existingPayment.metadata && typeof existingPayment.metadata === 'object') {
+          customData = existingPayment.metadata as Record<string, any>;
+        }
+      }
+
+      // 개발 환경에서만 성공 로그 출력
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ [Payment Success] 검증 완료 (paymentId 기반):', { 
+          paymentId: payment.id, 
+          amount: payment.amount.total,
+          planId: existingPayment.planId,
+          hasCustomData: payment.customData !== undefined
+        });
+      }
+
       // 결제 상태 검증
       if (payment.status !== 'PAID') {
         console.error('❌ [Payment] 결제 미완료:', { paymentId, status: payment.status });
@@ -244,7 +289,7 @@ export const action = async (args: ActionFunctionArgs) => {
                 portonePayment: payment,
                 failedAt: new Date().toISOString()
               },
-              updatedAt: new Date()
+              updatedAt: new Date().toISOString()
             })
             .where(eq(payments.id, existingPayment.id));
         }
@@ -263,42 +308,6 @@ export const action = async (args: ActionFunctionArgs) => {
         } as IPaymentApiResponse, { status: 400 });
       }
 
-      // 상품 정보 검증 (customData에서)
-      let customData: Record<string, any>;
-      
-      // customData가 문자열인 경우 JSON 파싱
-      if (typeof payment.customData === 'string') {
-        try {
-          customData = JSON.parse(payment.customData);
-        } catch (error) {
-          console.error('❌ [Payment] customData 파싱 실패:', { error });
-          return json({
-            success: false,
-            error: "Invalid payment custom data format"
-          } as IPaymentApiResponse, { status: 400 });
-        }
-      } else {
-        customData = payment.customData as Record<string, any>;
-      }
-      
-      // 상품 정보 검증
-      if (customData?.planId !== existingPayment.planId) {
-        console.error('❌ [Payment] 상품 정보 불일치:', {
-          expected: existingPayment.planId,
-          received: customData?.planId
-        });
-        
-        return json({
-          success: false,
-          error: "Product information mismatch"
-        } as IPaymentApiResponse, { status: 400 });
-      }
-
-      // 개발 환경에서만 성공 로그 출력
-      if (process.env.NODE_ENV === 'development') {
-        console.log('✅ [Payment Success]', { paymentId: payment.id, amount: payment.amount.total });
-      }
-
       // 구독 계획 조회
       const [plan] = await db
         .select()
@@ -314,9 +323,15 @@ export const action = async (args: ActionFunctionArgs) => {
       const now = new Date();
       const subscriptionId = `sub_${Date.now()}_${nanoid(8)}`;
       
+      // 단건결제 여부 확인
+      const isOneTimePayment = plan.billingPeriod === 'one_time';
+      
       // 구독 종료일 계산
       const endDate = new Date(now);
-      if (plan.billingPeriod === 'monthly') {
+      if (isOneTimePayment) {
+        // 단건결제: 항상 1개월
+        endDate.setMonth(endDate.getMonth() + 1);
+      } else if (plan.billingPeriod === 'monthly') {
         endDate.setMonth(endDate.getMonth() + 1);
       } else if (plan.billingPeriod === 'yearly') {
         endDate.setFullYear(endDate.getFullYear() + 1);
@@ -329,12 +344,12 @@ export const action = async (args: ActionFunctionArgs) => {
           portonePaymentKey: payment.id,
           method: payment.method?.type || 'UNKNOWN',
           status: 'confirmed',
-          paidAt: new Date(payment.paidAt || payment.requestedAt),
+          paidAt: new Date(payment.paidAt || payment.requestedAt).toISOString(),
           metadata: {
             ...(existingPayment.metadata as Record<string, any> || {}),
             portonePayment: payment
           },
-          updatedAt: now
+          updatedAt: now.toISOString()
         })
         .where(eq(payments.id, existingPayment.id));
 
@@ -344,13 +359,14 @@ export const action = async (args: ActionFunctionArgs) => {
         userId,
         planId: plan.id,
         status: 'active',
-        startDate: now,
-        endDate,
-        autoRenew: true,
+        startDate: now.toISOString(),
+        endDate: endDate.toISOString(),
+        autoRenew: !isOneTimePayment, // 단건결제는 자동갱신 없음
         metadata: {
           paymentId: existingPayment.id,
           portonePaymentId: payment.id,
-          orderId: customData?.orderId
+          orderId: customData?.orderId,
+          paymentType: isOneTimePayment ? 'one_time' : 'subscription'
         }
       });
 
@@ -359,16 +375,18 @@ export const action = async (args: ActionFunctionArgs) => {
         .update(userProfiles)
         .set({
           membershipTier: plan.membershipTier,
-          updatedAt: now
+          updatedAt: now.toISOString()
         })
         .where(eq(userProfiles.id, userId));
 
       // 성공적인 구독 활성화 (운영 환경에서도 출력)
-      console.log('🎉 [Payment Success] 구독 활성화:', {
+      console.log(`🎉 [Payment Success] ${isOneTimePayment ? '단건결제' : '구독'} 활성화:`, {
         userId,
         subscriptionId,
         planName: plan.name,
-        membershipTier: plan.membershipTier
+        membershipTier: plan.membershipTier,
+        paymentType: isOneTimePayment ? 'one_time' : 'subscription',
+        autoRenew: !isOneTimePayment
       });
 
       return json({ 

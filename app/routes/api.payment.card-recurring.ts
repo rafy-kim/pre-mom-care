@@ -181,7 +181,7 @@ async function savePaymentRecord(userId: string, paymentResult: INicePayCardRecu
       amount: paymentResult.amount.toString(),
       method: 'card_recurring',
       status: 'confirmed' as const,
-      paidAt: new Date(paymentResult.paidAt),
+      paidAt: new Date(paymentResult.paidAt).toISOString(),
       metadata: { 
         billingType: 'card_recurring',
         planId,
@@ -192,59 +192,101 @@ async function savePaymentRecord(userId: string, paymentResult: INicePayCardRecu
     await db.insert(payments).values(paymentRecord);
     console.log('✅ 결제 기록 저장 완료:', paymentRecord.id);
 
-    // 2. 활성 구독 조회/생성
-    let subscription = await db
+    // 2. 기존 활성 구독 조회 및 남은 기간 계산
+    console.log('🔍 [Card Recurring] 기존 활성 구독 조회 중...');
+    
+    const existingSubscriptions = await db
       .select()
       .from(subscriptions)
       .where(and(
         eq(subscriptions.userId, userId),
         eq(subscriptions.status, 'active')
-      ))
-      .limit(1);
+      ));
 
-    if (subscription.length === 0) {
-      // 새로운 구독 생성
-      const newSubscription = {
-        id: crypto.randomUUID(),
-        userId,
-        planId,
-        status: 'active' as const,
-        startDate: new Date(),
-        endDate: planId.includes('monthly') 
-          ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30일 후
-          : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 365일 후
-        autoRenew: true,
-        metadata: {
-          createdBy: 'payment_success',
-          initialPaymentId: paymentRecord.id,
-        },
-      };
+    let totalRemainingDays = 0;
+    const now = new Date();
 
-      await db.insert(subscriptions).values(newSubscription);
-      console.log('✅ 새 구독 생성 완료:', newSubscription.id);
-    } else {
-      // 기존 구독 연장
-      const currentSub = subscription[0];
-      const extendedEndDate = planId.includes('monthly')
-        ? new Date(currentSub.endDate.getTime() + 30 * 24 * 60 * 60 * 1000)
-        : new Date(currentSub.endDate.getTime() + 365 * 24 * 60 * 60 * 1000);
-
-      await db
-        .update(subscriptions)
-        .set({ 
-          endDate: extendedEndDate,
-          updatedAt: new Date(),
-        })
-        .where(eq(subscriptions.id, currentSub.id));
-      console.log('✅ 구독 연장 완료:', currentSub.id);
+    // 기존 구독들의 남은 기간 계산 및 종료 처리
+    if (existingSubscriptions.length > 0) {
+      console.log(`📊 [Card Recurring] ${existingSubscriptions.length}개의 기존 활성 구독 발견`);
+      
+      for (const existingSub of existingSubscriptions) {
+        const endDate = new Date(existingSub.endDate);
+        const remainingDays = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+        
+        console.log(`⏰ [Card Recurring] 기존 구독 남은 기간:`, {
+          subscriptionId: existingSub.id,
+          planId: existingSub.planId,
+          endDate: existingSub.endDate,
+          remainingDays: remainingDays
+        });
+        
+        totalRemainingDays += remainingDays;
+        
+        // 기존 구독을 'replaced' 상태로 변경
+        await db
+          .update(subscriptions)
+          .set({
+            status: 'replaced',
+            updatedAt: now.toISOString(),
+            metadata: {
+              ...(existingSub.metadata as Record<string, any> || {}),
+              replacedAt: now.toISOString(),
+              replacedBy: 'card_recurring_payment',
+              preservedDays: remainingDays
+            }
+          })
+          .where(eq(subscriptions.id, existingSub.id));
+        
+        console.log(`✅ [Card Recurring] 기존 구독 종료 처리 완료: ${existingSub.id}`);
+      }
     }
+
+    // 새 구독의 기간 계산 (기본 기간 + 기존 구독 남은 기간)
+    const baseDays = planId.includes('monthly') ? 30 : 365;
+    const totalDays = baseDays + totalRemainingDays;
+    const endDate = new Date(now.getTime() + totalDays * 24 * 60 * 60 * 1000);
+
+    console.log(`📅 [Card Recurring] 새 구독 기간 계산:`, {
+      baseDays,
+      totalRemainingDays,
+      totalDays,
+      startDate: now.toISOString(),
+      endDate: endDate.toISOString()
+    });
+
+    // 3. 새로운 구독 생성 (항상 새로 생성)
+    const newSubscription = {
+      id: crypto.randomUUID(),
+      userId,
+      planId,
+      status: 'active' as const,
+      startDate: now.toISOString(),
+      endDate: endDate.toISOString(),
+      autoRenew: true, // 빌링키 결제는 항상 자동갱신
+      metadata: {
+        createdBy: 'card_recurring_payment',
+        paymentType: 'recurring',
+        initialPaymentId: paymentRecord.id,
+        preservedDaysFromPreviousSubscriptions: totalRemainingDays,
+        baseDays,
+        totalDays
+      },
+    };
+
+    await db.insert(subscriptions).values(newSubscription);
+    console.log('✅ 새 구독 생성 완료:', {
+      subscriptionId: newSubscription.id,
+      preservedDays: totalRemainingDays,
+      totalDays: totalDays
+    });
 
     // 3. 사용자 프리미엄 상태 업데이트
     await db
       .update(userProfiles)
       .set({ 
         membershipTier: 'premium',
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
       })
       .where(eq(userProfiles.id, userId));
     console.log('✅ 사용자 프리미엄 상태 업데이트 완료');

@@ -307,21 +307,10 @@ export default function CardBillingPayment({
       <DialogContent className="sm:max-w-[520px] max-h-[90vh] p-0">
         <div className="p-6 max-h-[calc(90vh-1rem)] overflow-y-auto">
           <DialogHeader className="space-y-3">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="text-lg font-bold flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-blue-600" />
-                프리미엄 정기 결제
-              </DialogTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleClose}
-                disabled={uiState.isLoading || uiState.isProcessingPayment}
-                className="h-8 w-8 p-0"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-blue-600" />
+              프리미엄 정기 결제
+            </DialogTitle>
             
             {/* 진행률 표시 - 더 컴팩트하게 */}
             <div className="space-y-1">

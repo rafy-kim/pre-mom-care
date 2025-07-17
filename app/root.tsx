@@ -50,10 +50,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body className="touch-manipulation">
+      <body className="touch-manipulation" suppressHydrationWarning={true}>
         {children}
         <ScrollRestoration />
         <Scripts />
+        {/* 포트원 V2 SDK - ES6 Module 방식 */}
+        <script type="module" dangerouslySetInnerHTML={{
+          __html: `
+            import * as PortOne from "https://cdn.portone.io/v2/browser-sdk.esm.js";
+            
+            // 글로벌 변수로 설정하여 React 컴포넌트에서 사용 가능하게 함
+            window.PortOneSDK = PortOne;
+            
+            console.log('🌐 PortOne SDK imported:', PortOne);
+            console.log('✅ PortOne requestPayment available:', typeof PortOne.requestPayment === 'function');
+          `
+        }} />
       </body>
     </html>
   );

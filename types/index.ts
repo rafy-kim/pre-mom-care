@@ -59,22 +59,18 @@ export const TIER_PERMISSIONS: Record<MembershipTier, ITierPermissions> = {
 // 결제 수단 타입 (포트원 V2 표준)
 export type PaymentMethod = 'CARD' | 'VIRTUAL_ACCOUNT' | 'TRANSFER' | 'MOBILE' | 'GIFT_CERTIFICATE' | 'EASY_PAY';
 
-// 결제 상태 타입  
+// 🎯 결제 시스템 타입 정의
+export type BillingPeriod = 'monthly' | 'yearly' | 'one_time'; // one_time 추가
 export type PaymentStatus = 'pending' | 'confirmed' | 'failed' | 'cancelled' | 'refunded';
-
-// 구독 상태 타입
 export type SubscriptionStatus = 'active' | 'cancelled' | 'paused' | 'expired';
-
-// 결제 주기 타입
-export type BillingPeriod = 'monthly' | 'yearly';
 
 // 구독 계획 인터페이스
 export interface ISubscriptionPlan {
   id: string;
   name: string;
-  membershipTier: 'premium' | 'expert';
+  membershipTier: MembershipTier;
   price: number;
-  billingPeriod: BillingPeriod;
+  billingPeriod: BillingPeriod; // 이제 one_time 포함
   dailyQuestionLimit: number;
   weeklyQuestionLimit: number;
   monthlyQuestionLimit: number;
