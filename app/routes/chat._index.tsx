@@ -12,12 +12,14 @@ import { IMessage } from "types";
 import { ChatInput } from "~/components/chat/ChatInput";
 import { ChatMessage } from "~/components/chat/ChatMessage";
 import { TypingIndicator } from "~/components/chat/TypingIndicator";
+import { StreamingMessage } from "~/components/chat/StreamingMessage";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Bot } from "lucide-react";
 import { LoginBanner } from "~/components/auth/LoginBanner";
 import { QuestionLimitIndicator } from "~/components/freemium/QuestionLimitIndicator";
 import { PremiumUpgradeModal } from "~/components/freemium/PremiumUpgradeModal";
 import { useFreemiumPolicy } from "~/hooks/useFreemiumPolicy";
+import { useStreamingChat } from "~/hooks/useStreamingChat";
 import { action as geminiAction } from "~/routes/api.gemini";
 
 type ContextType = {
@@ -27,14 +29,67 @@ type ContextType = {
 export const action = async (args: ActionFunctionArgs) => {
   const { userId } = await getAuth(args);
   
-      // 개발 환경에서만 로그 출력
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🎯 [Server Action] 새 대화 시작:', userId);
-    }
-
   const formData = await args.request.formData();
+  const intent = formData.get("_action");
+  
+  // 스트리밍 후 새 채팅 저장
+  if (intent === "saveNewChat") {
+    const userMessageContent = formData.get("userMessage") as string;
+    const aiResponseStr = formData.get("aiResponse") as string;
+    
+    if (!userMessageContent || !aiResponseStr || !userId) {
+      return json({ error: "Missing required data" }, { status: 400 });
+    }
+    
+    try {
+      const aiResponse = JSON.parse(aiResponseStr);
+      const newChatId = nanoid();
+      
+      await db.transaction(async (tx) => {
+        // 1. 새 대화 생성
+        await tx.insert(chats).values({
+          id: newChatId,
+          userId: userId,
+          title: userMessageContent.substring(0, 50),
+        });
+        
+        // 2. 인사 메시지
+        await tx.insert(messages).values({
+          id: nanoid(),
+          chatId: newChatId,
+          role: "assistant",
+          content: {
+            answer: "안녕하세요! 저는 '안심이'에요. 무엇이든 물어보세요.",
+            sources: []
+          },
+        });
+        
+        // 3. 사용자 메시지
+        await tx.insert(messages).values({
+          id: nanoid(),
+          chatId: newChatId,
+          role: "user",
+          content: userMessageContent,
+        });
+        
+        // 4. AI 메시지
+        await tx.insert(messages).values({
+          id: nanoid(),
+          chatId: newChatId,
+          role: "assistant",
+          content: aiResponse,
+        });
+      });
+      
+      return redirect(`/chat/${newChatId}`);
+    } catch (error) {
+      console.error('❌ [saveNewChat] 오류:', error);
+      return json({ error: "Failed to save chat" }, { status: 500 });
+    }
+  }
+  
+  // 기존 로직 (폴백용)
   const userMessageContent = formData.get("message") as string;
-
   if (!userMessageContent) {
     return json({ error: "Message is required" }, { status: 400 });
   }
@@ -193,7 +248,12 @@ export const action = async (args: ActionFunctionArgs) => {
   } else {
     // 게스트 사용자는 현재 페이지에 머물면서 메시지만 표시
     console.log('✅ [SERVER ACTION] 게스트 사용자 응답 완료');
-    return json({ success: true, message: "게스트 모드에서 질문이 처리되었습니다." });
+    const { reply } = responseData;
+    return json({ 
+      success: true, 
+      reply: reply,
+      message: "게스트 모드에서 질문이 처리되었습니다." 
+    });
   }
 };
 
@@ -211,9 +271,9 @@ const MOCK_MESSAGES: IMessage[] = [
 
 export default function ChatIndexPage() {
   const [messages, setMessages] = useState<IMessage[]>(MOCK_MESSAGES);
-  const [isLoading, setIsLoading] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [processedActionId, setProcessedActionId] = useState<string | null>(null); // 처리된 액션 ID 추적
+  const [tempChatId, setTempChatId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const submit = useSubmit();
   const actionData = useActionData<typeof action>();
@@ -222,6 +282,36 @@ export default function ChatIndexPage() {
   
   // Freemium 정책 훅
   const freemium = useFreemiumPolicy(userProfile);
+  
+  // 스트리밍 채팅 훅
+  const { isStreaming, streamingMessage, sendMessage } = useStreamingChat({
+    chatId: tempChatId || 'new',
+    onMessageComplete: async (aiMessage) => {
+      setMessages((prev) => [...prev, aiMessage]);
+      
+      // 로그인 사용자의 경우 서버에 저장
+      if (userProfile) {
+        // 새 채팅 생성과 메시지 저장을 한 번에 처리
+        const formData = new FormData();
+        formData.append("_action", "saveNewChat");
+        formData.append("userMessage", messages[messages.length - 1].content as string);
+        formData.append("aiResponse", JSON.stringify(aiMessage.content));
+        submit(formData, { method: "post" });
+      }
+    },
+    onError: (error) => {
+      console.error('스트리밍 오류:', error);
+      // 폴백: 기존 API 사용
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage && lastMessage.role === "user") {
+        const formData = new FormData();
+        formData.append("message", lastMessage.content as string);
+        submit(formData, { method: "post" });
+      }
+    }
+  });
+  
+  const isLoading = navigation.state !== "idle" || isStreaming;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -311,14 +401,30 @@ export default function ChatIndexPage() {
     }
   }, [actionData]); // freemium dependency 제거
 
-  // 로딩 상태 처리
+  // 스크롤 업데이트 (스트리밍 중에도)
   useEffect(() => {
-    const isSubmitting = navigation.state === "submitting";
-    setIsLoading(isSubmitting);
-  }, [navigation.state]);
+    if (isStreaming) {
+      scrollToBottom();
+    }
+  }, [streamingMessage, isStreaming]);
 
   const handleSendMessage = async (text: string) => {
     console.log('🎯 [CLIENT] handleSendMessage 호출됨:', text);
+    
+    // Freemium 체크
+    const questionLimitCheck = freemium.checkQuestionLimit();
+    console.log('🔍 [handleSendMessage] Freemium 체크:', {
+      canAsk: questionLimitCheck.canAsk,
+      limitType: questionLimitCheck.limitType,
+      remainingQuestions: questionLimitCheck.remainingQuestions,
+      isSubscribed: freemium.isSubscribed,
+    });
+    
+    if (!questionLimitCheck.canAsk) {
+      console.log('❌ [handleSendMessage] Freemium 제한');
+      setShowUpgradeModal(true);
+      return;
+    }
     
     // UI 표시용 메시지 추가
     const newUserMessage: IMessage = {
@@ -331,14 +437,9 @@ export default function ChatIndexPage() {
     // 새로운 제출이므로 이전 처리 상태 초기화
     setProcessedActionId(null);
 
-    // 서버 액션 호출 (Freemium 체크는 서버에서 처리)
-    const formData = new FormData();
-    formData.append("message", text);
-    
-    console.log('🎯 [CLIENT] useSubmit으로 서버 액션 호출 시작');
-    
-    // Remix의 useSubmit 훅 사용 - 현재 라우트의 action으로 자동 제출
-    submit(formData, { method: "post" });
+    // 스트리밍 API 사용
+    console.log('🚀 [handleSendMessage] 스트리밍 시작');
+    await sendMessage(text);
   };
 
   // 모달 닫기 핸들러
@@ -373,18 +474,22 @@ export default function ChatIndexPage() {
             <ChatMessage {...msg} />
           </div>
         ))}
-        {isLoading && (
-          <div className="flex items-start justify-start gap-2 sm:gap-3 w-full min-w-0">
-            <Avatar className="flex-shrink-0">
-              <AvatarImage src="/ansimi.png" alt="안심이 마스코트" />
-              <AvatarFallback>
-                <Bot className="h-6 w-6" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="bg-muted rounded-lg min-w-0">
-              <TypingIndicator />
-            </div>
+        {isStreaming && streamingMessage && (
+          <div className="w-full min-w-0">
+            <ChatMessage
+              id="streaming"
+              role="assistant"
+              content={{
+                answer: streamingMessage,
+                sources: []
+              }}
+              isStreaming={true}
+            />
           </div>
+        )}
+        {/* 스트리밍 메시지가 없지만 스트리밍 중이거나, 로딩 중인 경우 로딩 표시 */}
+        {((isStreaming && !streamingMessage) || (isLoading && !isStreaming)) && (
+          <StreamingMessage />
         )}
         <div ref={messagesEndRef} />
       </div>

@@ -11,6 +11,7 @@ import { Button } from '../ui/button';
 interface ChatMessageProps extends IMessage {
   isBookmarked?: boolean;
   disableActions?: boolean; // 북마크/공유 버튼 비활성화 여부
+  isStreaming?: boolean; // 스트리밍 중인지 여부
 }
 
 export function ChatMessage({
@@ -19,6 +20,7 @@ export function ChatMessage({
   content,
   isBookmarked,
   disableActions = false,
+  isStreaming = false,
 }: ChatMessageProps) {
   const isUser = role === "user";
   const fetcher = useFetcher();
@@ -187,7 +189,8 @@ export function ChatMessage({
             "break-words overflow-hidden", // 긴 단어 자동 줄바꿈과 오버플로우 숨김
             isUser
               ? "bg-primary text-primary-foreground"
-              : "bg-muted"
+              : "bg-muted",
+            isStreaming && "animate-pulse border-blue-300"
             // pr-10 패딩 제거 - 더 이상 우측 상단 버튼 공간이 필요하지 않음
           )}
         >
@@ -219,7 +222,7 @@ export function ChatMessage({
               </div>
             </CardFooter>
           )}
-          {!isUser && !isGreetingMessage && !disableActions && (
+          {!isUser && !isGreetingMessage && !disableActions && !isStreaming && (
             <div className="border-t p-3 pt-2 bg-gray-50/20">
               <div className="flex items-center justify-end gap-2">
                 {/* 북마크 버튼 */}

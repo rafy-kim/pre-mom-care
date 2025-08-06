@@ -777,8 +777,22 @@ export const action = async (args: ActionFunctionArgs) => {
       allowedRefTypes = TIER_PERMISSIONS[userTier].allowedRefTypes;
     }
 
-    // 임베딩 생성
-    const embeddingResult = await embeddingModel.embedContent(message);
+    // 성능 측정 시작
+    const totalStartTime = Date.now();
+    
+    // 병렬 처리: 임베딩 생성과 히스토리 포맷 동시 진행
+    console.log('⚡ [병렬 처리] 임베딩 생성 + 히스토리 포맷 시작...');
+    
+    const [embeddingResult] = await Promise.all([
+      // 임베딩 생성
+      (async () => {
+        const startTime = Date.now();
+        const result = await embeddingModel.embedContent(message);
+        console.log(`✅ [임베딩] 생성 완료 - ${Date.now() - startTime}ms`);
+        return result;
+      })()
+    ]);
+    
     const { embedding } = embeddingResult;
     const embeddingString = `[${embedding.values.join(',')}]`;
     
@@ -789,6 +803,7 @@ export const action = async (args: ActionFunctionArgs) => {
     const refTypeFilter = allowedRefTypes.map(type => `'${type}'`).join(',');
     
     // 필터링과 LIMIT을 한 번의 쿼리로 처리 (더 효율적)
+    const dbStartTime = Date.now();
     const { rows: documents } = await pool.query(
       `SELECT * FROM (
          SELECT * FROM match_documents($1, $2, $3) 
@@ -797,6 +812,7 @@ export const action = async (args: ActionFunctionArgs) => {
        LIMIT 5`,
       [embeddingString, 0.6, 10] // 충분한 후보군 확보를 위해 10개로 설정
     );
+    console.log(`✅ [DB 검색] 완료 - ${Date.now() - dbStartTime}ms (문서 ${documents.length}개)`);
     
     // 상세 검색 결과 로그
     debugLog(`\n📊 [RAG Search Process]`);
@@ -863,9 +879,11 @@ export const action = async (args: ActionFunctionArgs) => {
       history: geminiHistory,
     });
 
+    const geminiStartTime = Date.now();
     const result = await chat.sendMessage(augmentedPrompt);
     const response = await result.response;
     const text = response.text();
+    console.log(`✅ [Gemini API] 응답 생성 완료 - ${Date.now() - geminiStartTime}ms`);
     
     // 토큰 사용량 정보 추출
     const usageMetadata = response.usageMetadata;
@@ -944,6 +962,9 @@ export const action = async (args: ActionFunctionArgs) => {
       if (updatedUserCounts) {
         response.userCounts = updatedUserCounts;
       }
+      
+      console.log(`⏱️ [전체 처리 시간] ${Date.now() - totalStartTime}ms`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
       return json(response);
     } catch (parseError) {

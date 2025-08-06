@@ -18,11 +18,13 @@ import { IMessage } from "types";
 import { ChatInput } from "~/components/chat/ChatInput";
 import { ChatMessage } from "~/components/chat/ChatMessage";
 import { TypingIndicator } from "~/components/chat/TypingIndicator";
+import { StreamingMessage } from "~/components/chat/StreamingMessage";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Bot } from "lucide-react";
 import { QuestionLimitIndicator } from "~/components/freemium/QuestionLimitIndicator";
 import { PremiumUpgradeModal } from "~/components/freemium/PremiumUpgradeModal";
 import { useFreemiumPolicy } from "~/hooks/useFreemiumPolicy";
+import { useStreamingChat } from "~/hooks/useStreamingChat";
 import { action as geminiAction } from "~/routes/api.gemini";
 
 export const loader = async (args: LoaderFunctionArgs) => {
@@ -92,14 +94,51 @@ export const action = async (args: ActionFunctionArgs) => {
     return json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { chatId } = args.params;
+  if (!chatId) {
+    return json({ error: "Chat ID is required" }, { status: 400 });
+  }
+
   const formData = await args.request.formData();
   const intent = formData.get("_action");
 
-  if (intent === "delete") {
-    const { chatId } = args.params;
-    if (!chatId) {
-      return json({ error: "Chat ID is required" }, { status: 400 });
+  // 스트리밍된 메시지 저장
+  if (intent === "saveStreamedMessage") {
+    const message = formData.get("message") as string;
+    const aiResponse = formData.get("aiResponse") as string;
+    
+    if (!message || !aiResponse) {
+      return json({ error: "Missing message or AI response" }, { status: 400 });
     }
+    
+    try {
+      const parsedResponse = JSON.parse(aiResponse);
+      
+      // 사용자 메시지 저장
+      const userMessageId = nanoid();
+      await db.insert(messages).values({
+        id: userMessageId,
+        chatId: chatId,
+        role: "user",
+        content: message,
+      });
+      
+      // AI 메시지 저장
+      await db.insert(messages).values({
+        id: nanoid(),
+        chatId: chatId,
+        role: "assistant",
+        content: parsedResponse,
+      });
+      
+      return json({ ok: true });
+    } catch (error) {
+      console.error('❌ [스트리밍 메시지 저장] 오류:', error);
+      return json({ error: "Failed to save message" }, { status: 500 });
+    }
+  }
+
+  if (intent === "delete") {
     
     // Verify user owns the chat before deleting
     const chat = await db.query.chats.findFirst({
@@ -117,10 +156,6 @@ export const action = async (args: ActionFunctionArgs) => {
   }
 
   // Fallback to existing message sending logic
-  const { chatId } = args.params;
-  if (!chatId) {
-    return json({ error: "Chat ID is required" }, { status: 400 });
-  }
 
   const userMessageContent = formData.get("message") as string;
   if (!userMessageContent) {
@@ -238,7 +273,6 @@ export default function ChatIdPage() {
   const location = useLocation();
   const [messages, setMessages] = useState<IMessage[]>(initialMessages as IMessage[]);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const isLoading = fetcher.state !== "idle";
   
   // fetcher의 이전 상태를 추적하기 위한 ref
   const prevFetcherState = useRef(fetcher.state);
@@ -246,8 +280,45 @@ export default function ChatIdPage() {
   // Freemium 정책 훅
   const freemium = useFreemiumPolicy(userProfile);
 
+  // 사용자 메시지를 저장할 ref
+  const lastUserMessageRef = useRef<string>("");
+
+  // 스트리밍 채팅 훅
+  const { isStreaming, streamingMessage, sendMessage } = useStreamingChat({
+    chatId,
+    onMessageComplete: async (aiMessage) => {
+      setMessages((prev) => [...prev, aiMessage]);
+      
+      // 서버에 메시지 저장
+      const formData = new FormData();
+      formData.append("_action", "saveStreamedMessage");
+      formData.append("message", lastUserMessageRef.current);
+      formData.append("aiResponse", JSON.stringify(aiMessage.content));
+      fetcher.submit(formData, { method: "post" });
+    },
+    onError: (error) => {
+      console.error('스트리밍 오류, 폴백 사용:', error);
+      // 폴백: 기존 API 사용
+      if (lastUserMessageRef.current) {
+        const formData = new FormData();
+        formData.append("message", lastUserMessageRef.current);
+        fetcher.submit(formData, { method: "post" });
+      }
+    }
+  });
+
+  const isLoading = fetcher.state !== "idle" || isStreaming;
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const highlightedMessageRef = useRef<HTMLDivElement>(null);
+  
+  // 스트리밍 중일 때도 자동 스크롤
+  useEffect(() => {
+    if (isStreaming || messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [streamingMessage, messages, isStreaming]);
+
 
   // loader로부터 새로운 initialMessages가 전달될 때마다 messages 상태를 업데이트합니다.
   useEffect(() => {
@@ -314,15 +385,56 @@ export default function ChatIdPage() {
 
   // Add new message from fetcher optimistic UI
   useEffect(() => {
-    if (fetcher.data && "message" in fetcher.data) {
+    if (fetcher.data) {
+      // 에러 처리
+      if ("error" in fetcher.data) {
+        console.error('❌ [fetcher] 에러:', fetcher.data.error);
+        // 에러 메시지를 사용자에게 표시
+        const errorMessage: IMessage = {
+          id: String(Date.now()),
+          role: "assistant",
+          content: {
+            answer: "죄송합니다. 메시지 저장 중 오류가 발생했습니다. 다시 시도해주세요.",
+            sources: []
+          }
+        };
+        setMessages(prev => {
+          // 마지막 메시지가 스트리밍 메시지인 경우 교체
+          const lastMessage = prev[prev.length - 1];
+          if (lastMessage && lastMessage.role === "assistant") {
+            return [...prev.slice(0, -1), errorMessage];
+          }
+          return [...prev, errorMessage];
+        });
+      } 
+      // 정상 응답 처리
+      else if ("message" in fetcher.data) {
         const newMessage = fetcher.data.message as IMessage;
         if (newMessage.chatId === chatId && !messages.find(m => m.id === newMessage.id)) {
             setMessages(prev => [...prev, newMessage]);
         }
+      }
     }
   }, [fetcher.data, messages, chatId]);
 
   const handleSendMessage = async (text: string) => {
+    console.log('🎯 [handleSendMessage] 호출됨 - 메시지:', text);
+    
+    // Freemium 체크
+    const questionLimitCheck = freemium.checkQuestionLimit();
+    console.log('🔍 [handleSendMessage] Freemium 체크:', {
+      canAsk: questionLimitCheck.canAsk,
+      limitType: questionLimitCheck.limitType,
+      remainingQuestions: questionLimitCheck.remainingQuestions,
+      isSubscribed: freemium.isSubscribed,
+    });
+    
+    if (!questionLimitCheck.canAsk) {
+      console.log('❌ [handleSendMessage] Freemium 제한');
+      setShowUpgradeModal(true);
+      return;
+    }
+
     const newUserMessage: IMessage = {
       id: String(Date.now()),
       role: "user",
@@ -330,10 +442,18 @@ export default function ChatIdPage() {
     };
     setMessages((prev) => [...prev, newUserMessage]);
     
-    // 서버 액션 호출
-    const formData = new FormData();
-    formData.append("message", text);
-    fetcher.submit(formData, { method: "post" });
+    // 사용자 메시지 저장 (나중에 서버로 전송)
+    lastUserMessageRef.current = text;
+    
+    console.log('🚀 [handleSendMessage] 스트리밍 sendMessage 호출 예정');
+    
+    try {
+      // 새로운 스트리밍 훅 사용
+      await sendMessage(text);
+      console.log('✅ [handleSendMessage] 스트리밍 완료');
+    } catch (error) {
+      console.error('❌ [handleSendMessage] 스트리밍 오류:', error);
+    }
   };
 
   // fetcher 응답 처리 (fetcher.state가 변경될 때만)
@@ -408,18 +528,22 @@ export default function ChatIdPage() {
             />
           </div>
         ))}
-        {isLoading && (
-          <div className="flex items-start justify-start gap-2 sm:gap-3 w-full min-w-0">
-            <Avatar className="flex-shrink-0">
-              <AvatarImage src="/ansimi.png" alt="안심이 마스코트" />
-              <AvatarFallback>
-                <Bot className="h-6 w-6" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="bg-muted rounded-lg p-3 min-w-0">
-              <TypingIndicator />
-            </div>
+        {isStreaming && streamingMessage && (
+          <div className="w-full min-w-0">
+            <ChatMessage
+              id="streaming"
+              role="assistant"
+              content={{
+                answer: streamingMessage,
+                sources: []
+              }}
+              isStreaming={true}
+            />
           </div>
+        )}
+        {/* 스트리밍 메시지가 없지만 스트리밍 중이거나, 로딩 중인 경우 로딩 표시 */}
+        {((isStreaming && !streamingMessage) || (isLoading && !isStreaming)) && (
+          <StreamingMessage />
         )}
         <div ref={messagesEndRef} />
       </div>

@@ -21,4 +21,14 @@ export default defineConfig({
     }),
     tsconfigPaths(),
   ],
+  server: {
+    // 개발 서버에서 SSE가 제대로 작동하도록 설정
+    hmr: {
+      overlay: false,
+    },
+  },
+  optimizeDeps: {
+    // EventSource 관련 최적화 제외
+    exclude: ['events'],
+  },
 });
