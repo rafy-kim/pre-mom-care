@@ -274,6 +274,7 @@ export default function ChatIndexPage() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [processedActionId, setProcessedActionId] = useState<string | null>(null); // 처리된 액션 ID 추적
   const [tempChatId, setTempChatId] = useState<string | null>(null);
+  const lastUserMessageRef = useRef<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const submit = useSubmit();
   const actionData = useActionData<typeof action>();
@@ -294,7 +295,7 @@ export default function ChatIndexPage() {
         // 새 채팅 생성과 메시지 저장을 한 번에 처리
         const formData = new FormData();
         formData.append("_action", "saveNewChat");
-        formData.append("userMessage", messages[messages.length - 1].content as string);
+        formData.append("userMessage", lastUserMessageRef.current);
         formData.append("aiResponse", JSON.stringify(aiMessage.content));
         submit(formData, { method: "post" });
       }
@@ -433,6 +434,9 @@ export default function ChatIndexPage() {
       content: text,
     };
     setMessages((prev) => [...prev, newUserMessage]);
+
+    // 사용자 메시지 저장 (나중에 서버에 저장할 때 사용)
+    lastUserMessageRef.current = text;
 
     // 새로운 제출이므로 이전 처리 상태 초기화
     setProcessedActionId(null);
