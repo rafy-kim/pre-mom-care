@@ -20,6 +20,7 @@ import { TypingIndicator } from "~/components/chat/TypingIndicator";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { QuestionLimitIndicator } from "~/components/freemium/QuestionLimitIndicator";
 import { PremiumUpgradeModal } from "~/components/freemium/PremiumUpgradeModal";
+import { OnboardingEditModal } from "~/components/onboarding/OnboardingEditModal";
 import { useFreemiumPolicy } from "~/hooks/useFreemiumPolicy";
 import {
   AlertDialog,
@@ -112,6 +113,7 @@ export default function ChatPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [isOnboardingEditOpen, setIsOnboardingEditOpen] = useState(false);
   
   // Freemium 정책 훅 (게스트 또는 로그인 사용자용)
   const freemium = useFreemiumPolicy(userProfile);
@@ -371,13 +373,16 @@ export default function ChatPage() {
             <div className="flex-shrink-0 p-4 border-t flex items-center gap-2">
               <UserButton />
               {userProfile && (
-                <div className="text-sm overflow-hidden text-ellipsis whitespace-nowrap p-2 flex-1 text-left">
+                <button 
+                  onClick={() => setIsOnboardingEditOpen(true)}
+                  className="text-sm overflow-hidden text-ellipsis whitespace-nowrap hover:bg-gray-100 p-2 rounded-md transition-colors flex-1 text-left"
+                >
                   <p className="font-semibold">{`${userProfile.baby_nickname} ${
                     userProfile.relation === 'father' ? '아빠' : 
                     userProfile.relation === 'mother' ? '엄마' : 
                     userProfile.relation
                   }`}</p>
-                </div>
+                </button>
               )}
             </div>
           </aside>
@@ -454,6 +459,19 @@ export default function ChatPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        
+        {/* 온보딩 정보 수정 모달 */}
+        <OnboardingEditModal 
+          isOpen={isOnboardingEditOpen}
+          onOpenChange={setIsOnboardingEditOpen}
+          userProfile={userProfile}
+          onSuccess={() => {
+            // 수정 완료 후 페이지 새로고침으로 데이터 업데이트
+            setTimeout(() => {
+              window.location.reload();
+            }, 100);
+          }}
+        />
       </>
     );
   }
