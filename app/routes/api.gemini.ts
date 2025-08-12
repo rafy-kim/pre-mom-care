@@ -3,28 +3,15 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getAuth } from "@clerk/remix/ssr.server";
 import { TIER_PERMISSIONS, MembershipTier } from "types";
 import pg from 'pg';
+import { logger } from "~/lib/logger";
 
-// 🔧 디버그 모드 설정 - 배포시 false로 설정하세요
-const DEBUG_MODE = false;
-
-// 🎭 Freemium Mock 모드 설정 - 개발/테스트 환경에서 API 비용 절약
-console.log(`🔍 [ENV DEBUG] FREEMIUM_MOCK_MODE 환경 변수:`, {
-  rawValue: process.env.FREEMIUM_MOCK_MODE,
-  type: typeof process.env.FREEMIUM_MOCK_MODE,
-  isTrue: process.env.FREEMIUM_MOCK_MODE === 'true',
-  isFalse: process.env.FREEMIUM_MOCK_MODE === 'false'
-});
+// Freemium Mock 모드 설정 - 개발/테스트 환경에서 API 비용 절약
 const FREEMIUM_MOCK_MODE = process.env.FREEMIUM_MOCK_MODE === 'true';
-console.log(`🎭 [FINAL] FREEMIUM_MOCK_MODE 최종 값: ${FREEMIUM_MOCK_MODE}`);
 
 // 디버그 로그 헬퍼 함수
-const debugLog = DEBUG_MODE ? console.log : () => {};
-const debugError = DEBUG_MODE ? console.error : () => {};
-
-// Mock 모드 로그 헬퍼 함수
-const mockLog = (message: string) => {
-  console.log(`🎭 [Mock Mode] ${message}`);
-};
+const debugLog = logger.debug;
+const debugError = logger.error;
+const mockLog = logger.mock;
 
 // Initialize a connection pool to the Neon database
 const pool = new pg.Pool({
@@ -59,22 +46,22 @@ function calculateAndLogCost(
   // 원화 환산
   const totalCostKRW = totalCostUSD * GEMINI_PRICING.USD_TO_KRW;
   
-  console.log(`\n💰 [${operation} 비용 분석]`);
-  console.log(`┌─────────────────────────────────────────────────────────┐`);
-  console.log(`│ 📊 토큰 사용량                                          │`);
-  console.log(`│   • 임베딩 (gemini-embedding-exp-03-07): ${embeddingTokens.toLocaleString().padStart(8)} 토큰 │`);
-  console.log(`│   • 입력 (gemini-2.5-flash):            ${inputTokens.toLocaleString().padStart(8)} 토큰 │`);
-  console.log(`│   • 출력 (gemini-2.5-flash):            ${outputTokens.toLocaleString().padStart(8)} 토큰 │`);
-  console.log(`│                                                         │`);
-  console.log(`│ 💵 비용 상세 (USD)                                      │`);
-  console.log(`│   • 임베딩 비용: $${embeddingCostUSD.toFixed(6).padStart(8)} (무료)        │`);
-  console.log(`│   • 입력 비용:   $${inputCostUSD.toFixed(6).padStart(8)}                │`);
-  console.log(`│   • 출력 비용:   $${outputCostUSD.toFixed(6).padStart(8)}                │`);
-  console.log(`│   • 총 비용:     $${totalCostUSD.toFixed(6).padStart(8)}                │`);
-  console.log(`│                                                         │`);
-  console.log(`│ 🇰🇷 원화 환산 (1 USD = ${GEMINI_PRICING.USD_TO_KRW}원)                       │`);
-  console.log(`│   • 총 비용:     ${totalCostKRW.toFixed(2).padStart(8)}원                │`);
-  console.log(`└─────────────────────────────────────────────────────────┘`);
+  logger.cost(`\n💰 [${operation} 비용 분석]`);
+  logger.cost(`┌─────────────────────────────────────────────────────────┐`);
+  logger.cost(`│ 📊 토큰 사용량                                          │`);
+  logger.cost(`│   • 임베딩 (gemini-embedding-exp-03-07): ${embeddingTokens.toLocaleString().padStart(8)} 토큰 │`);
+  logger.cost(`│   • 입력 (gemini-2.5-flash):            ${inputTokens.toLocaleString().padStart(8)} 토큰 │`);
+  logger.cost(`│   • 출력 (gemini-2.5-flash):            ${outputTokens.toLocaleString().padStart(8)} 토큰 │`);
+  logger.cost(`│                                                         │`);
+  logger.cost(`│ 💵 비용 상세 (USD)                                      │`);
+  logger.cost(`│   • 임베딩 비용: $${embeddingCostUSD.toFixed(6).padStart(8)} (무료)        │`);
+  logger.cost(`│   • 입력 비용:   $${inputCostUSD.toFixed(6).padStart(8)}                │`);
+  logger.cost(`│   • 출력 비용:   $${outputCostUSD.toFixed(6).padStart(8)}                │`);
+  logger.cost(`│   • 총 비용:     $${totalCostUSD.toFixed(6).padStart(8)}                │`);
+  logger.cost(`│                                                         │`);
+  logger.cost(`│ 🇰🇷 원화 환산 (1 USD = ${GEMINI_PRICING.USD_TO_KRW}원)                       │`);
+  logger.cost(`│   • 총 비용:     ${totalCostKRW.toFixed(2).padStart(8)}원                │`);
+  logger.cost(`└─────────────────────────────────────────────────────────┐`);
   
   return {
     embeddingTokens,
@@ -480,7 +467,7 @@ async function checkAndResetUserLimits(userId: string): Promise<{
   userProfile: any;
 }> {
   try {
-    console.log('🔍 [API Freemium] 사용자 제한 체크 시작:', userId);
+    logger.freemium('사용자 제한 체크 시작:', userId);
     
     // 사용자 프로필 조회
     const { rows } = await pool.query(
@@ -491,7 +478,7 @@ async function checkAndResetUserLimits(userId: string): Promise<{
     );
     
     if (rows.length === 0) {
-      console.log('❌ [API Freemium] 사용자 프로필을 찾을 수 없음:', userId);
+      logger.freemium('❌ 사용자 프로필을 찾을 수 없음:', userId);
       return {
         canAsk: false,
         limitType: 'none',
@@ -504,7 +491,7 @@ async function checkAndResetUserLimits(userId: string): Promise<{
     const now = new Date();
     const lastQuestionAt = userProfile.last_question_at ? new Date(userProfile.last_question_at) : null;
     
-    console.log('📊 [API Freemium] 사용자 정보:', {
+    logger.freemium('📊 사용자 정보:', {
       tier: userProfile.membership_tier,
       dailyUsed: userProfile.daily_questions_used,
       weeklyUsed: userProfile.weekly_questions_used,
@@ -514,7 +501,7 @@ async function checkAndResetUserLimits(userId: string): Promise<{
     
     // 구독 사용자는 무제한
     if (userProfile.membership_tier === 'premium' || userProfile.membership_tier === 'expert') {
-      console.log('✅ [API Freemium] 구독 사용자 - 무제한 허용');
+      logger.freemium('✅ 구독 사용자 - 무제한 허용');
       return {
         canAsk: true,
         limitType: 'subscription',
@@ -532,21 +519,21 @@ async function checkAndResetUserLimits(userId: string): Promise<{
     if (lastQuestionAt) {
       // 하루가 지났으면 일일 카운트 초기화
       if (!isSameDay(now, lastQuestionAt)) {
-        console.log('🔄 [API Freemium] 하루가 지나서 일일 카운트 초기화');
+        logger.freemium('🔄 하루가 지나서 일일 카운트 초기화');
         dailyQuestionsUsed = 0;
         needsUpdate = true;
       }
       
       // 주가 지났으면 주간 카운트 초기화
       if (!isSameWeek(now, lastQuestionAt)) {
-        console.log('🔄 [API Freemium] 주가 지나서 주간 카운트 초기화');
+        logger.freemium('🔄 주가 지나서 주간 카운트 초기화');
         weeklyQuestionsUsed = 0;
         needsUpdate = true;
       }
       
       // 월이 지났으면 월간 카운트 초기화
       if (!isSameMonth(now, lastQuestionAt)) {
-        console.log('🔄 [API Freemium] 월이 지나서 월간 카운트 초기화');
+        logger.freemium('🔄 월이 지나서 월간 카운트 초기화');
         monthlyQuestionsUsed = 0;
         needsUpdate = true;
       }
@@ -554,7 +541,7 @@ async function checkAndResetUserLimits(userId: string): Promise<{
     
     // DB 업데이트가 필요한 경우
     if (needsUpdate) {
-      console.log('💾 [API Freemium] 카운트 초기화 - DB 업데이트 실행');
+      logger.freemium('💾 카운트 초기화 - DB 업데이트 실행');
       await pool.query(
         `UPDATE user_profiles 
          SET daily_questions_used = $1, weekly_questions_used = $2, 
@@ -574,7 +561,7 @@ async function checkAndResetUserLimits(userId: string): Promise<{
     const weeklyRemaining = FREEMIUM_LIMITS.WEEKLY_FREE_LIMIT - weeklyQuestionsUsed;
     const monthlyRemaining = FREEMIUM_LIMITS.MONTHLY_FREE_LIMIT - monthlyQuestionsUsed;
     
-    console.log('📈 [API Freemium] 제한 체크:', {
+    logger.freemium('📈 제한 체크:', {
       daily: `${dailyQuestionsUsed}/${FREEMIUM_LIMITS.DAILY_FREE_LIMIT} (남음: ${dailyRemaining})`,
       weekly: `${weeklyQuestionsUsed}/${FREEMIUM_LIMITS.WEEKLY_FREE_LIMIT} (남음: ${weeklyRemaining})`,
       monthly: `${monthlyQuestionsUsed}/${FREEMIUM_LIMITS.MONTHLY_FREE_LIMIT} (남음: ${monthlyRemaining})`
@@ -582,7 +569,7 @@ async function checkAndResetUserLimits(userId: string): Promise<{
     
     // 일일 제한 확인
     if (dailyRemaining <= 0) {
-      console.log('🚫 [API Freemium] 일일 제한 도달');
+      logger.freemium('🚫 일일 제한 도달');
       return {
         canAsk: false,
         limitType: 'daily',
@@ -593,7 +580,7 @@ async function checkAndResetUserLimits(userId: string): Promise<{
     
     // 주간 제한 확인
     if (weeklyRemaining <= 0) {
-      console.log('🚫 [API Freemium] 주간 제한 도달');
+      logger.freemium('🚫 주간 제한 도달');
       return {
         canAsk: false,
         limitType: 'weekly',
@@ -604,7 +591,7 @@ async function checkAndResetUserLimits(userId: string): Promise<{
     
     // 월간 제한 확인
     if (monthlyRemaining <= 0) {
-      console.log('🚫 [API Freemium] 월간 제한 도달');
+      logger.freemium('🚫 월간 제한 도달');
       return {
         canAsk: false,
         limitType: 'monthly',
@@ -615,7 +602,7 @@ async function checkAndResetUserLimits(userId: string): Promise<{
     
     // 모든 제한을 통과한 경우
     const minRemaining = Math.min(dailyRemaining, weeklyRemaining, monthlyRemaining);
-    console.log('✅ [API Freemium] 질문 가능 - 남은 질문:', minRemaining);
+    logger.freemium('✅ 질문 가능 - 남은 질문:', minRemaining);
     
     return {
       canAsk: true,
@@ -625,7 +612,7 @@ async function checkAndResetUserLimits(userId: string): Promise<{
     };
     
   } catch (error) {
-    console.error('❌ [API Freemium] 제한 체크 오류:', error);
+    logger.error('❌ [API Freemium] 제한 체크 오류:', error);
     return {
       canAsk: false,
       limitType: 'none',
@@ -640,7 +627,7 @@ async function checkAndResetUserLimits(userId: string): Promise<{
  */
 async function incrementUserQuestionCount(userId: string): Promise<void> {
   try {
-    console.log('📈 [API Freemium] 질문 카운트 증가:', userId);
+    logger.freemium('📈 질문 카운트 증가:', userId);
     
     await pool.query(
       `UPDATE user_profiles 
@@ -653,9 +640,9 @@ async function incrementUserQuestionCount(userId: string): Promise<void> {
       [userId]
     );
     
-    console.log('✅ [API Freemium] 질문 카운트 증가 완료');
+    logger.freemium('✅ 질문 카운트 증가 완료');
   } catch (error) {
-    console.error('❌ [API Freemium] 질문 카운트 증가 오류:', error);
+    logger.error('❌ [API Freemium] 질문 카운트 증가 오류:', error);
   }
 }
 
@@ -819,7 +806,7 @@ export const action = async (args: ActionFunctionArgs) => {
     debugLog(`   • User Tier: ${userTier} | Allowed RefTypes: [${allowedRefTypes.join(', ')}]`);
     debugLog(`   • Documents found (filtered & limited): ${documents.length}`);
     
-    if (DEBUG_MODE && documents.length > 0) {
+    if (documents.length > 0) {
       debugLog(`\n📋 [Selected Documents]:`);
       documents.forEach((doc, index) => {
         const similarity = (doc.similarity * 100).toFixed(2);
@@ -843,7 +830,7 @@ export const action = async (args: ActionFunctionArgs) => {
         }
         debugLog('');
       });
-    } else if (DEBUG_MODE) {
+    } else {
       debugLog("⚠️ [Search Results] No documents found above similarity threshold");
     }
 
@@ -891,10 +878,8 @@ export const action = async (args: ActionFunctionArgs) => {
     const outputTokens = usageMetadata?.candidatesTokenCount || 0;
     const totalTokens = usageMetadata?.totalTokenCount || 0;
     
-    // API 비용 계산 및 로그 출력 (디버그 모드에서만)
-    if (DEBUG_MODE) {
-      calculateAndLogCost(embeddingTokens, inputTokens, outputTokens, "질문 답변");
-    }
+    // API 비용 계산 및 로그 출력
+    calculateAndLogCost(embeddingTokens, inputTokens, outputTokens, "질문 답변");
     
     try {
       // Clean the response text by removing markdown and extra characters
@@ -963,8 +948,7 @@ export const action = async (args: ActionFunctionArgs) => {
         response.userCounts = updatedUserCounts;
       }
       
-      console.log(`⏱️ [전체 처리 시간] ${Date.now() - totalStartTime}ms`);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      logger.debug(`⏱️ 전체 처리 시간: ${Date.now() - totalStartTime}ms`);
       
       return json(response);
     } catch (parseError) {

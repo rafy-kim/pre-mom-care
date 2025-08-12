@@ -377,7 +377,7 @@ export default function PricingPage() {
                 </CardDescription>
                 <div className="mt-4">
                   <span className="text-4xl font-bold text-green-600">
-                    {onetimePlan?.price?.toLocaleString() || '2,500'}원
+                    {onetimePlan?.price?.toLocaleString() || '1,200'}원
                   </span>
                   <span className="text-gray-600 ml-2">/1개월</span>
                 </div>
@@ -454,12 +454,12 @@ export default function PricingPage() {
                 </CardDescription>
                 <div className="mt-4">
                   <span className="text-4xl font-bold text-blue-600">
-                    {monthlyPlan?.price?.toLocaleString() || '2,000'}원
+                    {monthlyPlan?.price?.toLocaleString() || '1,000'}원
                   </span>
                   <span className="text-gray-600 ml-2">/월</span>
                 </div>
                 <p className="text-sm text-blue-600 font-medium mt-2">
-                  💰 월 500원 절약!
+                  💰 월 200원 절약!
                 </p>
               </CardHeader>
               
@@ -520,7 +520,7 @@ export default function PricingPage() {
                 </h3>
                 <p className="text-gray-600">
                   1개월 이용권은 한 번만 결제하고 자동결제가 되지 않아 안심입니다. 
-                  월간 구독은 500원 저렴하지만 매월 자동으로 결제됩니다. 언제든 해지 가능합니다.
+                  월간 구독은 200원 저렴하지만 매월 자동으로 결제됩니다. 언제든 해지 가능합니다.
                 </p>
               </div>
               
@@ -593,7 +593,7 @@ export default function PricingPage() {
                     결제 진행 중...
                   </>
                 ) : (
-                  `1개월 이용권 (${onetimePlan?.price?.toLocaleString() || '2,500'}원)`
+                  `1개월 이용권 (${onetimePlan?.price?.toLocaleString() || '1,200'}원)`
                 )}
               </Button>
               <Button 
@@ -601,7 +601,7 @@ export default function PricingPage() {
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleDirectSubscriptionPayment}
               >
-                프리미엄 구독 ({monthlyPlan?.price?.toLocaleString() || '2,000'}원/월)
+                프리미엄 구독 ({monthlyPlan?.price?.toLocaleString() || '1,000'}원/월)
               </Button>
             </div>
           </div>
