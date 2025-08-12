@@ -232,3 +232,21 @@ export const paymentsRelations = relations(payments, ({ one }) => ({
     references: [subscriptionPlans.id],
   }),
 }));
+
+// 🎯 주차별 임신 정보 테이블
+export const pregnancyInfo = pgTable("pregnancy_info", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  week: integer("week").notNull().unique(), // 임신 주차 (1-40)
+  title: text("title").notNull(), // 주차별 정보 제목
+  sizeComparison: text("size_comparison"), // 크기 비교 (예: "참깨 씨앗")
+  fetusLengthCmMin: decimal("fetus_length_cm_min", { precision: 5, scale: 2 }), // 태아 최소 크기 (cm)
+  fetusLengthCmMax: decimal("fetus_length_cm_max", { precision: 5, scale: 2 }), // 태아 최대 크기 (cm)
+  fetusWeightGMin: decimal("fetus_weight_g_min", { precision: 7, scale: 2 }), // 태아 최소 무게 (g)
+  fetusWeightGMax: decimal("fetus_weight_g_max", { precision: 7, scale: 2 }), // 태아 최대 무게 (g)
+  motherChanges: text("mother_changes"), // 엄마의 변화
+  fetusGrowth: text("fetus_growth"), // 태아의 성장
+  tips: text("tips"), // 주의사항 및 팁
+  expertComment: text("expert_comment"), // 전문가 코멘트
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+});

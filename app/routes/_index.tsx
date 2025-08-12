@@ -4,6 +4,7 @@ import { SignInButton, SignedOut } from "@clerk/remix";
 import { getAuth } from "@clerk/remix/ssr.server";
 import { redirect, type LoaderFunctionArgs } from "@remix-run/node";
 import { BusinessFooter } from "~/components/layout/BusinessFooter";
+import { CalendarDays, MessageCircle } from "lucide-react";
 
 export const loader = async (args: LoaderFunctionArgs) => {
   const { userId } = await getAuth(args);
@@ -36,9 +37,20 @@ export default function Index() {
                   시작하기
                 </Button>
               </SignInButton>
-              <Button asChild size="lg" variant="ghost" className="w-full touch-manipulation text-lg py-6 h-14 text-gray-500">
-                <Link to="/chat">둘러보기</Link>
-              </Button>
+              <div className="flex gap-3 w-full">
+                <Button asChild size="lg" variant="outline" className="flex-1 touch-manipulation">
+                  <Link to="/chat">
+                    <MessageCircle className="h-5 w-5 mr-2" />
+                    AI 챗봇
+                  </Link>
+                </Button>
+                <Button asChild size="lg" variant="outline" className="flex-1 touch-manipulation">
+                  <Link to="/pregnancy-info">
+                    <CalendarDays className="h-5 w-5 mr-2" />
+                    주차별 정보
+                  </Link>
+                </Button>
+              </div>
             </div>
           </SignedOut>
         </div>

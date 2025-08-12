@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bookmark, MessageSquarePlus, Trash2, Menu, X } from "lucide-react";
+import { Bookmark, MessageSquarePlus, Trash2, Menu, X, CalendarDays } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { LoginBanner } from "~/components/auth/LoginBanner";
 import { IMessage } from "types";
@@ -18,7 +18,6 @@ import { ChatInput } from "~/components/chat/ChatInput";
 import { ChatMessage } from "~/components/chat/ChatMessage";
 import { TypingIndicator } from "~/components/chat/TypingIndicator";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
-import { OnboardingEditModal } from "~/components/onboarding/OnboardingEditModal";
 import { QuestionLimitIndicator } from "~/components/freemium/QuestionLimitIndicator";
 import { PremiumUpgradeModal } from "~/components/freemium/PremiumUpgradeModal";
 import { useFreemiumPolicy } from "~/hooks/useFreemiumPolicy";
@@ -39,6 +38,7 @@ import {
   TabsTrigger,
 } from "~/components/ui/tabs";
 import { BusinessFooter } from "~/components/layout/BusinessFooter";
+import { calculatePregnancyWeek, getDaysUntilDue } from "~/utils/pregnancy";
 
 export const loader = async (args: LoaderFunctionArgs) => {
   const { userId } = await getAuth(args);
@@ -110,7 +110,6 @@ export default function ChatPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isOnboardingEditOpen, setIsOnboardingEditOpen] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   
@@ -232,18 +231,17 @@ export default function ChatPage() {
 
   // --- Logged-In Mode Render ---
   if (userProfile) {
-    const dueDate = new Date(userProfile.dueDate);
-    const today = new Date();
-    const dDay = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const currentWeek = calculatePregnancyWeek(userProfile.dueDate);
+    const daysLeft = getDaysUntilDue(userProfile.dueDate);
     
-    // 임신 주차 계산 (전체 280일 기준)
-    const totalPregnancyDays = 280;
-    const elapsedDays = totalPregnancyDays - dDay;
-    const weeks = Math.floor(elapsedDays / 7);
-    const days = elapsedDays % 7;
-    const greeting = `${weeks}주 + ${days}일`;
+    // greeting 포맷: "임신 20주차" 형태
+    const greeting = currentWeek ? `임신 ${currentWeek}주차` : '임신 정보';
     
-    let dDayText = dDay > 0 ? `D - ${dDay}` : dDay === 0 ? "D - Day" : `D + ${-dDay}`;
+    // D-Day 텍스트
+    let dDayText = '';
+    if (daysLeft !== null) {
+      dDayText = daysLeft > 0 ? `D - ${daysLeft}` : daysLeft === 0 ? "D - Day" : `D + ${-daysLeft}`;
+    }
     
     return (
       <>
@@ -373,16 +371,13 @@ export default function ChatPage() {
             <div className="flex-shrink-0 p-4 border-t flex items-center gap-2">
               <UserButton />
               {userProfile && (
-                <button 
-                  onClick={() => setIsOnboardingEditOpen(true)}
-                  className="text-sm overflow-hidden text-ellipsis whitespace-nowrap hover:bg-gray-100 p-2 rounded-md transition-colors flex-1 text-left"
-                >
+                <div className="text-sm overflow-hidden text-ellipsis whitespace-nowrap p-2 flex-1 text-left">
                   <p className="font-semibold">{`${userProfile.baby_nickname} ${
                     userProfile.relation === 'father' ? '아빠' : 
                     userProfile.relation === 'mother' ? '엄마' : 
                     userProfile.relation
                   }`}</p>
-                </button>
+                </div>
               )}
             </div>
           </aside>
@@ -412,13 +407,16 @@ export default function ChatPage() {
                   </Link>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => setIsOnboardingEditOpen(true)}
-                    className="text-right hover:bg-gray-100 p-0 rounded-md transition-colors cursor-pointer"
+                  <Link 
+                    to={`/pregnancy-info/${currentWeek || 1}`}
+                    className="flex items-center gap-2 hover:bg-gray-100 p-2 rounded-md transition-colors cursor-pointer"
                   >
-                    <p className="text-xs text-muted-foreground">{greeting}</p>
-                    <h1 className="text-sm font-medium">{dDayText}</h1>
-                  </button>
+                    <CalendarDays className="h-5 w-5 text-gray-600" />
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">{greeting}</p>
+                      <h1 className="text-sm font-medium">{dDayText}</h1>
+                    </div>
+                  </Link>
                 </div>
               </div>
             </header>
@@ -456,19 +454,6 @@ export default function ChatPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        
-        {/* 온보딩 정보 수정 모달 */}
-        <OnboardingEditModal 
-          isOpen={isOnboardingEditOpen}
-          onOpenChange={setIsOnboardingEditOpen}
-          userProfile={userProfile}
-          onSuccess={() => {
-            // 수정 완료 후 페이지 새로고침으로 데이터 업데이트
-            setTimeout(() => {
-              window.location.reload();
-            }, 100);
-          }}
-        />
       </>
     );
   }
@@ -491,6 +476,14 @@ export default function ChatPage() {
             </div>
           </Link>
           <div className="flex items-center gap-2">
+            {/* 주차별 정보 버튼 */}
+            <Link to="/pregnancy-info">
+              <Button variant="ghost" size="sm">
+                <CalendarDays className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">주차별 정보</span>
+              </Button>
+            </Link>
+            
             {/* 개발용 디버깅 버튼들 */}
             {process.env.NODE_ENV === 'development' && (
               <>

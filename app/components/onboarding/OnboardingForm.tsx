@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
 
 import { cn } from "~/lib/utils";
+import { calculatePregnancyWeek, formatPregnancyWeek, getDaysUntilDue } from "~/utils/pregnancy";
 import { Button } from "~/components/ui/button";
 import { Calendar } from "~/components/ui/calendar";
 import { Input } from "~/components/ui/input";
@@ -22,7 +23,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 
 export function OnboardingForm() {
-  const navigate = useNavigate();
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [gender, setGender] = useState("");
@@ -81,6 +81,12 @@ export function OnboardingForm() {
                 />
               </PopoverContent>
             </Popover>
+            {dueDate && (
+              <div className="text-sm text-muted-foreground mt-2">
+                <div>{formatPregnancyWeek(calculatePregnancyWeek(dueDate))}</div>
+                <div>D-{getDaysUntilDue(dueDate) ?? 0}</div>
+              </div>
+            )}
           </div>
           <div className="space-y-2">
             <Label>아기 성별</Label>

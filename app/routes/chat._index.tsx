@@ -22,8 +22,23 @@ import { useFreemiumPolicy } from "~/hooks/useFreemiumPolicy";
 import { useStreamingChat } from "~/hooks/useStreamingChat";
 import { action as geminiAction } from "~/routes/api.gemini";
 
+interface IUserProfileContext {
+  id: string;
+  babyNickname: string;
+  dueDate: string;
+  gender: string;
+  relation: string;
+  membershipTier: string;
+  dailyQuestionsUsed: number;
+  weeklyQuestionsUsed: number;
+  monthlyQuestionsUsed: number;
+  lastQuestionAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 type ContextType = {
-  userProfile: ReturnType<typeof useOutletContext> extends { userProfile: infer T } ? T : never;
+  userProfile: IUserProfileContext | null;
 };
 
 export const action = async (args: ActionFunctionArgs) => {
@@ -248,7 +263,7 @@ export const action = async (args: ActionFunctionArgs) => {
   } else {
     // 게스트 사용자는 현재 페이지에 머물면서 메시지만 표시
     console.log('✅ [SERVER ACTION] 게스트 사용자 응답 완료');
-    const { reply } = responseData;
+    const { reply } = aiResponse;
     return json({ 
       success: true, 
       reply: reply,

@@ -9,13 +9,15 @@
     "lint": "eslint --ignore-path .gitignore --cache --cache-location ./node_modules/.cache/eslint .",
     "start": "remix-serve ./build/server/index.js",
     "typecheck": "tsc",
+    "test": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "collect-youtube": "node scripts/youtube-scraper.mjs",
     "extract-transcripts": "node scripts/youtube-transcript-extractor.mjs",
     "extract-transcripts-v2": "node scripts/youtube-transcript-extractor-v2.mjs",
     "embed-books": "node scripts/embed.mjs",
-    "embed:youtube": "tsx scripts/embed_youtube.mjs"
+    "embed:youtube": "tsx scripts/embed_youtube.mjs",
+    "seed:pregnancy-info": "tsx scripts/seed-pregnancy-info.ts"
   },
   "dependencies": {
     "@clerk/remix": "^4.8.1",
@@ -43,6 +45,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^16.5.0",
     "drizzle-orm": "^0.44.2",
+    "framer-motion": "^12.23.12",
     "googleapis": "^150.0.1",
     "iamport-typings": "^1.4.0",
     "isbot": "^4.1.0",
@@ -55,6 +58,7 @@
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
     "react-textarea-autosize": "^8.5.9",
+    "recharts": "^3.1.2",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.3.1",
@@ -82,7 +86,8 @@
     "tsx": "^4.20.3",
     "typescript": "^5.1.6",
     "vite": "^6.0.0",
-    "vite-tsconfig-paths": "^4.2.1"
+    "vite-tsconfig-paths": "^4.2.1",
+    "vitest": "^3.2.4"
   },
   "engines": {
     "node": ">=20.0.0"

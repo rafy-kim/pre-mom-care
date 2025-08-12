@@ -159,3 +159,11 @@ curl -X POST localhost:5173/api/gemini \
 - Efficient vector search with pre-filtering
 - Token usage monitoring and cost calculation
 - Database connection pooling for concurrent requests
+
+<vooster-docs>
+- @vooster-docs/prd.md
+- @vooster-docs/step-by-step.md
+- @vooster-docs/tdd.md
+- @vooster-docs/clean-code.md
+- @vooster-docs/git-commit-message.md
+</vooster-docs>
